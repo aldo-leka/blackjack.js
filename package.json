@@ -9,6 +9,5 @@
   },
   "dependencies": {
     "vite": "latest"
-  },
-  "devDependencies": {}
+  }
 }

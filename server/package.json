@@ -1,0 +1,10 @@
+{
+    "name": "blackjack-server",
+    "version": "0.0.1",
+    "description": "my second (probably) socket.io app",
+    "type": "module",
+    "dependencies": {
+        "express": "^4.21.2",
+        "socket.io": "^4.8.1"
+    }
+}

@@ -1,0 +1,36 @@
+import express from 'express';
+import { createServer } from 'node:http';
+import { Server } from 'socket.io';
+
+const app = express();
+const server = createServer(app);
+const io = new Server(server, {
+    connectionStateRecovery: {}
+});
+
+app.get('/', (req, res) => {
+    res.sendStatus(200);
+});
+
+io.on('connection', async (socket) => {
+    socket.on('chat message', async (msg) => {
+        let result;
+        try {
+            // store the message in the database
+            // result = await db.run('INSERT INTO messages (content) VALUES (?)', msg);
+        } catch (e) {
+            // TODO handle the failure
+            return;
+        }
+        // include the offset with the message
+        io.emit('chat message', msg);
+    });
+
+    if (!socket.recovered) {
+        // if the connection state recovery was not successful
+    }
+});
+
+server.listen(3000, () => {
+    console.log('server running at http://localhost:3000');
+});
