@@ -1,29 +1,30 @@
-import './config.js';
 import express from 'express';
+import itemRoutes from './routes/itemRoutes';
+import { errorHandler } from './middlewares/errorHandler';
+import cors from "cors";
+import config from './config/config';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
-import cors from "cors";
-import log from "./log.js";
 
 const app = express();
 
-const corsOrigin = process.env.CORS;
 app.use(
-  cors({
-    origin: corsOrigin,
-    // methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true, // Allow credentials (cookies, authorization headers, etc.)
-  })
+    cors({
+        origin: config.corsOrigin,
+        credentials: true, // Allow credentials (cookies, authorization headers, etc.)
+    })
 );
 
-const server = createServer(app);
-const io = new Server(server, {
-    connectionStateRecovery: {}
-});
+app.use(express.json());
 
-app.get('/', (req, res) => {
-    res.sendStatus(200);
-});
+// Routes
+app.use('/api/items', itemRoutes);
+
+// Global error handler (should be after routes)
+app.use(errorHandler);
+
+const server = createServer(app);
+const io = new Server(server);
 
 io.on('connection', async (socket) => {
     socket.on('chat message', async (msg) => {
@@ -44,7 +45,4 @@ io.on('connection', async (socket) => {
     }
 });
 
-const port = 3001;
-server.listen(port, () => {
-    log(`server running at http://localhost:${port}`);
-});
+export default app;
