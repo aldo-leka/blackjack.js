@@ -44,6 +44,7 @@ io.on('connection', async (socket) => {
     }
 });
 
-server.listen(3001, () => {
-    log('server running at http://localhost:3001');
+const port = 3001;
+server.listen(port, () => {
+    log(`server running at http://localhost:${port}`);
 });
