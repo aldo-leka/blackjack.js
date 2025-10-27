@@ -1,8 +1,21 @@
+import './config.js';
 import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
+import cors from "cors";
+import log from "./log.js";
 
 const app = express();
+
+const corsOrigin = process.env.CORS;
+app.use(
+  cors({
+    origin: corsOrigin,
+    // methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true, // Allow credentials (cookies, authorization headers, etc.)
+  })
+);
+
 const server = createServer(app);
 const io = new Server(server, {
     connectionStateRecovery: {}
@@ -32,5 +45,5 @@ io.on('connection', async (socket) => {
 });
 
 server.listen(3001, () => {
-    console.log('server running at http://localhost:3000');
+    log('server running at http://localhost:3001');
 });

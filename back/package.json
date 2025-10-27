@@ -1,10 +1,18 @@
 {
-    "name": "blackjack-server",
+    "name": "blackjack-back",
     "version": "0.0.1",
     "description": "my second (probably) socket.io app",
     "type": "module",
+    "scripts": {
+        "dev": "nodemon app.js",
+        "start": "node app.js"
+    },
     "dependencies": {
+        "dotenv": "^17.2.3",
         "express": "^4.21.2",
         "socket.io": "^4.8.1"
+    },
+    "devDependencies": {
+        "nodemon": "^3.1.10"
     }
 }
