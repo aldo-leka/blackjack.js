@@ -30,15 +30,15 @@ export const auth = betterAuth({
                 checkout({
                     products: [
                         {
-                            productId: "ce2976b3-d38c-4b7b-9fe4-481d27a4034a",
+                            productId: config.polarProduct10Id,
                             slug: "Blackjack-10",
                         },
                         {
-                            productId: "185d6bd6-3971-4ac4-a3ab-347ba558ae2d",
-                            slug: "Blackjack-own",
+                            productId: config.polarProductOwnId,
+                            slug: "Blackjack-Own",
                         }
                     ],
-                    // successUrl: config.polarSuccessUrl,
+                    successUrl: config.frontendUrl,
                     authenticatedUsersOnly: true,
                 }),
                 portal(),

@@ -15,16 +15,12 @@ export default function Page() {
             </div>
             <div
                 className="flex justify-between items-center p-2 text-[#016F32] font-semibold bg-[#DAA520] w-1/2 rounded-sm cursor-pointer"
-                onClick={() => authClient.signIn.social({
-                    provider: "google"
-                }, {
-                    onSuccess: () => {
-                        router.push("/");
-                    },
-                    onError: (ctx) => {
-                        console.error("oh no", ctx.error);
-                    }
-                })}
+                onClick={async () => {
+                    await authClient.signIn.social({
+                        provider: "google",
+                        callbackURL: process.env.NEXT_PUBLIC_FRONTEND_URL,
+                    })
+                }}
             >
                 LOGIN
                 <Image
