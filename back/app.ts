@@ -5,15 +5,20 @@ import cors from "cors";
 import config from './config/config';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
+import { PrismaClient } from '@prisma/client';
+import { toNodeHandler } from "better-auth/node";
+import { auth } from "./auth";
 
 const app = express();
 
 app.use(
     cors({
-        origin: config.corsOrigin,
+        origin: config.frontendUrl,
         credentials: true, // Allow credentials (cookies, authorization headers, etc.)
     })
 );
+
+app.all('/api/auth/*', toNodeHandler(auth));
 
 app.use(express.json());
 
@@ -45,4 +50,4 @@ io.on('connection', async (socket) => {
     }
 });
 
-export default app;
+export default server;
