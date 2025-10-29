@@ -11,6 +11,7 @@ interface Config {
     googleClientId: string;
     googleClientSecret: string;
     polarAccessToken: string;
+    polarWebhookSecret: string;
     polarProduct10Id: string;
     polarProductOwnId: string;
 }
@@ -24,6 +25,7 @@ const config: Config = {
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     polarAccessToken: process.env.POLAR_ACCESS_TOKEN || '',
+    polarWebhookSecret: process.env.POLAR_WEBHOOK_SECRET || '',
     polarProduct10Id: process.env.POLAR_PRODUCT_10_ID || '',
     polarProductOwnId: process.env.POLAR_PRODUCT_OWN_ID || '',
 };

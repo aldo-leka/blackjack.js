@@ -1,11 +1,11 @@
 import express from 'express';
 import itemRoutes from './routes/itemRoutes';
+import userRoutes from './routes/userRoutes';
 import { errorHandler } from './middlewares/errorHandler';
 import cors from "cors";
 import config from './config/config';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
-import { PrismaClient } from '@prisma/client';
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./auth";
 
@@ -24,6 +24,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/items', itemRoutes);
+app.use('/api/users', userRoutes);
 
 // Global error handler (should be after routes)
 app.use(errorHandler);

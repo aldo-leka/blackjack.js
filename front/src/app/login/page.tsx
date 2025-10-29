@@ -18,7 +18,7 @@ export default function Page() {
                 onClick={async () => {
                     await authClient.signIn.social({
                         provider: "google",
-                        callbackURL: process.env.NEXT_PUBLIC_FRONTEND_URL,
+                        callbackURL: `${process.env.NEXT_PUBLIC_FRONTEND_URL}/product`,
                     })
                 }}
             >
