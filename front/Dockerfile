@@ -13,11 +13,18 @@ RUN npm ci
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
+
+# Accept build args for Next.js public env vars
+ARG NEXT_PUBLIC_BACKEND_URL
+ARG NEXT_PUBLIC_FRONTEND_URL
+
+# Set as env vars so Next.js can bake them into the build
+ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
+ENV NEXT_PUBLIC_FRONTEND_URL=$NEXT_PUBLIC_FRONTEND_URL
+ENV NEXT_TELEMETRY_DISABLED=1
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# Set environment variable for build (if needed)
-ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build Next.js
 RUN npm run build

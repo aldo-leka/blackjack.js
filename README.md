@@ -1,5 +1,9 @@
 # Useful stuff
 
+TODO Look at https://www.prisma.io/docs/orm/more/help-and-troubleshooting/vercel-caching-issue#the-applications-build-script-in-packagejson
+And maybe you don't need npx prisma generate as a Dockerfile step
+but at package.json...
+
 ## CI / CD
 ### Need to know
 Builds / deployments / dockerization crashed my server many times.

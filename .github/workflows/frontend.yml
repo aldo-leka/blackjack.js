@@ -45,6 +45,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_BACKEND_URL=https://blackjackapi.aldo.al
+            NEXT_PUBLIC_FRONTEND_URL=https://blackjack.aldo.al
 
       - name: Trigger Coolify deployment
         run: |
