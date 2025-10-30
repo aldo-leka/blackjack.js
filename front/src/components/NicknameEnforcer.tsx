@@ -21,7 +21,6 @@ export default function NicknameEnforcer({ children }: { children: React.ReactNo
         // do the handshake with the server to confirm that 
         // nickname is set (or not).
         const nickname = localStorage.getItem('nickname');
-        console.log(`at enforcer. localstorage nickname: ${nickname}`);
         if (nickname && nickname.trim() !== "") {
             socket.emit("register nickname", nickname);
         }

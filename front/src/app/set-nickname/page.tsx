@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { socket } from "@/lib/socket";
 import { useRouter, useSearchParams } from "next/navigation";
+import Loading from "@/components/Loading";
 
-export default function Page() {
+function Form() {
     const [nickname, setNickname] = useState("");
     const [error, setError] = useState("");
     const router = useRouter();
@@ -16,7 +17,6 @@ export default function Page() {
         }
 
         function handleNicknameAccepted() {
-            console.log(`at set-username page. setting nickname ls to ${nickname}`)
             localStorage.setItem("nickname", nickname);
             const returnUrl = searchParams.get('returnUrl') || '/';
             router.push(returnUrl);
@@ -60,4 +60,12 @@ export default function Page() {
             )}
         </div>
     );
+}
+
+export default function Page() {
+    return (
+        <Suspense fallback={<Loading />}>
+            <Form />
+        </Suspense>
+    )
 }
