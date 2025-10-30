@@ -19,6 +19,7 @@ export default function Page() {
       >
         START GAME
       </div>
+      <div>TEST</div>
     </div>
   )
 }
