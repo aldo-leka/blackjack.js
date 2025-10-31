@@ -10,6 +10,8 @@ import { toNodeHandler } from "better-auth/node";
 import { auth } from "./auth";
 import { logInfo, logWarning } from './log';
 import { IpApiResponse } from './models/ip-api';
+import { UserData } from './models/user-data';
+import { MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID } from './constants';
 
 const app = express();
 
@@ -41,12 +43,9 @@ const io = new Server(server, {
     }
 });
 
-/** key: nickname, value: { socketId, countryCode, room, etc. } */
-let users = new Map();
-users.set("aldo", {}); // todo remove after testing...
-
-/** key: nickname, value: timer id */
-let disconnects = new Map();
+let users = new Map<string, UserData>();
+let currentRoomId = 0;
+let disconnects = new Map<string, NodeJS.Timeout>();
 
 io.on('connection', async (socket) => {
     socket.on("register nickname", async (nickname) => {
@@ -61,6 +60,11 @@ io.on('connection', async (socket) => {
             clearTimeout(disconnects.get(nickname));
             disconnects.delete(nickname);
 
+            if (existing.room) {
+                socket.join(existing.room);
+                socket.to(existing.room).emit("user reconnected", nickname);
+            }
+
             logInfo(`${nickname} from ${existing.countryCode} reconnected before timeout`);
         }
 
@@ -72,7 +76,7 @@ io.on('connection', async (socket) => {
         users.set(nickname, {
             ...(existing || {}),
             socketId: socket.id,
-            countryCode: countryCode
+            countryCode: countryCode || undefined
         });
 
         logInfo(`on nickname handshake: ${nickname} from ${countryCode} (ip: ${ip})`);
@@ -80,23 +84,97 @@ io.on('connection', async (socket) => {
         socket.emit('nickname accepted');
     });
 
-    socket.on('disconnect', () => {
+    socket.on("disconnect", () => {
         const nickname = socket.data.nickname;
         if (!nickname) {
             return;
         }
 
-        const timeoutId = setTimeout(() => {
-            const countryCode = users.get(nickname).countryCode;
+        const user = users.get(nickname);
+        if (!user) {
+            return;
+        }
+
+        if (user.room) {
+            socket.to(user.room).emit("user disconnected", nickname);
+        }
+
+        const timeoutId = setTimeout(() => {            
+            const countryCode = user.countryCode;
+            const room = user.room;
+
             users.delete(nickname);
             disconnects.delete(nickname);
+
+            if (room) {
+                io.to(room).emit("user removed", nickname);
+            }
+
             logInfo(`${nickname} from ${countryCode} (ip: ${socket.handshake.address}) removed after timeout`);
         }, 30_000);
 
         disconnects.set(nickname, timeoutId);
-
         logInfo(`${nickname} marked as a disconnect`);
-    })
+    });
+
+    socket.on("join room", () => {
+        const nickname = socket.data.nickname;
+        if (!nickname) {
+            logInfo("join room: no nickname");
+            return;
+        }
+
+        const user = users.get(nickname);
+        if (!user) {
+            logInfo("join room: no user");
+            return;
+        }
+
+        // TODO What should happen if a user is already in a room?
+        // e.g. if they refresh the page?
+        // They should get fresh game data, thas' it. 
+        // if (user.room) {
+        //     socket.emit("already in room", user.room);
+        //     return;
+        // }
+
+        let rooms = new Map<string, UserData[]>();
+        for (let [userNickname, userData] of users) {
+            if (userData.room) {
+                const roomUsers = rooms.get(userData.room);
+                if (roomUsers) {
+                    rooms.set(userData.room, [...roomUsers, userData]);
+                }
+                else {
+                    rooms.set(userData.room, [userData]);
+                }
+            }
+        }
+
+        let roomFound = false;
+        let roomFoundName = "";
+        rooms.forEach((roomUsers, roomName) => {
+            if (!roomFound && roomUsers.length < MAX_PLAYERS_PER_ROOM) {
+                roomFound = true;
+                roomFoundName = roomName;
+            }
+        });
+
+        if (!roomFound) {
+            if (currentRoomId > MAX_ROOM_ID) {
+                currentRoomId = 0;
+            }
+
+            currentRoomId += 1;
+            roomFoundName = `ROOM_${currentRoomId}`;
+        }
+
+        // update user data with found room
+        users.set(nickname, {...user, room: roomFoundName});
+        socket.join(roomFoundName);
+        socket.emit("joined room");
+        socket.to(roomFoundName).emit("user joined", nickname);
+    });
 });
 
 function getIp(socket: Socket) {

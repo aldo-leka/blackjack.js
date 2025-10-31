@@ -1,7 +1,58 @@
+"use client";
+
 import Chip from "@/components/Chip";
+import { socket } from "@/lib/socket";
 import { Repeat } from "lucide-react";
+import { useEffect } from "react";
+import { useNickname } from "@/contexts/NicknameContext";
 
 export default function Page() {
+    const { isHandshakeComplete } = useNickname();
+
+    useEffect(() => {
+        // Only emit join room after handshake is complete
+        if (!isHandshakeComplete) {
+            return;
+        }
+        
+        socket.emit("join room");
+
+        function joinedRoom() {
+            console.log("joined room");
+        }
+
+        function userJoined(nickname: string) {
+            console.log(`${nickname} joined.`);
+        }
+
+        function userReconnected(nickname: string) {
+            console.log(`${nickname} reconnected.`);
+        }
+
+        function userDisconnected(nickname: string) {
+            console.log(`${nickname} disconnected.`);
+        }
+
+        function userRemoved(nickname: string) {
+            console.log(`${nickname} removed.`);
+        }
+
+        socket.on("joined room", joinedRoom);
+        socket.on("user joined", userJoined);
+        socket.on("user reconnected", userReconnected);
+        socket.on("user disconnected", userDisconnected);
+        socket.on("user removed", userRemoved);
+
+        return () => {
+            console.log("clearing up the socket listeners");
+            socket.off("joined room", joinedRoom);
+            socket.off("user joined", userJoined);
+            socket.off("user reconnected", userReconnected);
+            socket.off("user disconnected", userDisconnected);
+            socket.off("user removed", userRemoved);
+        }
+    }, [isHandshakeComplete]);
+
     return (
         <div className="flex flex-col items-center gap-4 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
             <div className="w-full max-w-7xl px-12 flex justify-between items-start">
