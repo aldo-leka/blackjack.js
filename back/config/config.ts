@@ -14,6 +14,7 @@ interface Config {
     polarWebhookSecret: string;
     polarProduct10Id: string;
     polarProductOwnId: string;
+    cronSecret: string;
 }
 
 const config: Config = {
@@ -28,6 +29,7 @@ const config: Config = {
     polarWebhookSecret: process.env.POLAR_WEBHOOK_SECRET || '',
     polarProduct10Id: process.env.POLAR_PRODUCT_10_ID || '',
     polarProductOwnId: process.env.POLAR_PRODUCT_OWN_ID || '',
+    cronSecret: process.env.CRON_SECRET || '',
 };
 
 export default config;

@@ -1,6 +1,7 @@
 import express from 'express';
 import itemRoutes from './routes/itemRoutes';
 import userRoutes from './routes/userRoutes';
+import cronRoutes from './routes/cronRoutes';
 import { errorHandler } from './middlewares/errorHandler';
 import cors from "cors";
 import config from './config/config';
@@ -12,6 +13,7 @@ import { logInfo, logWarning } from './log';
 import { IpApiResponse } from './models/ip-api';
 import { UserData } from './models/user-data';
 import { MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID } from './constants';
+import prisma from './db';
 
 const app = express();
 
@@ -30,6 +32,7 @@ app.use(express.json());
 // Routes
 app.use('/api/items', itemRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/cron', cronRoutes);
 
 // Global error handler (should be after routes)
 app.use(errorHandler);
@@ -72,16 +75,33 @@ io.on('connection', async (socket) => {
 
         const ip = getIp(socket);
         const countryCode = existing?.countryCode || await getCountryCodeFromIP(ip);
+        
+        const tempUser = await prisma.tempUser.upsert({
+            where: {
+                nickname_ip: { nickname, ip }
+            },
+            update: {
+                countryCode: countryCode || undefined,
+                updatedAt: new Date()
+            },
+            create: {
+                nickname,
+                ip,
+                countryCode: countryCode || undefined,
+                cash: 1000
+            }
+        });
 
         users.set(nickname, {
             ...(existing || {}),
             socketId: socket.id,
-            countryCode: countryCode || undefined
+            countryCode: countryCode || undefined,
+            cash: tempUser.cash
         });
 
-        logInfo(`on nickname handshake: ${nickname} from ${countryCode ?? "somewhere"} (ip: ${ip})`);
+        logInfo(`on nickname handshake: ${nickname} from ${countryCode ?? "somewhere"} (ip: ${ip}) with ${tempUser.cash} cash`);
 
-        socket.emit('nickname accepted');
+        socket.emit('nickname accepted', { cash: tempUser.cash });
     });
 
     socket.on("disconnect", () => {
