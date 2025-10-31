@@ -14,7 +14,7 @@ export default function Page() {
         if (!isHandshakeComplete) {
             return;
         }
-        
+
         socket.emit("join room");
 
         function joinedRoom() {

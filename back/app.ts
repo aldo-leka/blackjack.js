@@ -65,7 +65,7 @@ io.on('connection', async (socket) => {
                 socket.to(existing.room).emit("user reconnected", nickname);
             }
 
-            logInfo(`${nickname} from ${existing.countryCode} reconnected before timeout`);
+            logInfo(`${nickname} from ${existing.countryCode ?? "somewhere"} reconnected before timeout`);
         }
 
         socket.data.nickname = nickname;
@@ -79,7 +79,7 @@ io.on('connection', async (socket) => {
             countryCode: countryCode || undefined
         });
 
-        logInfo(`on nickname handshake: ${nickname} from ${countryCode} (ip: ${ip})`);
+        logInfo(`on nickname handshake: ${nickname} from ${countryCode ?? "somewhere"} (ip: ${ip})`);
 
         socket.emit('nickname accepted');
     });
