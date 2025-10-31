@@ -72,7 +72,7 @@ model TempUser {
   nickname     String   @db.VarChar(255)
   ip           String   @db.VarChar(255)
   countryCode  String?  @db.VarChar(10)
-  cash         Int      @default(10)
+  cash         Int      @default(0)
   lastRefillAt DateTime @default(now())
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt

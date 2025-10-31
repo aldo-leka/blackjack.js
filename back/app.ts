@@ -12,7 +12,7 @@ import { auth } from "./auth";
 import { logInfo, logWarning } from './log';
 import { IpApiResponse } from './models/ip-api';
 import { UserData } from './models/user-data';
-import { MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID } from './constants';
+import { DAILY_REFILL_VALUE, MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID } from './constants';
 import prisma from './db';
 
 const app = express();
@@ -75,7 +75,7 @@ io.on('connection', async (socket) => {
 
         const ip = getIp(socket);
         const countryCode = existing?.countryCode || await getCountryCodeFromIP(ip);
-        
+
         const tempUser = await prisma.tempUser.upsert({
             where: {
                 nickname_ip: { nickname, ip }
@@ -88,7 +88,7 @@ io.on('connection', async (socket) => {
                 nickname,
                 ip,
                 countryCode: countryCode || undefined,
-                cash: 1000
+                cash: DAILY_REFILL_VALUE,
             }
         });
 
