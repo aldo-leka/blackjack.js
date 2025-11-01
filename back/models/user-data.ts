@@ -4,4 +4,5 @@ export interface UserData {
     countryCode?: string;
     room?: string;
     cash?: number;
+    bet?: number;
 }

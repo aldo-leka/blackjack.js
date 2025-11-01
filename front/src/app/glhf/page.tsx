@@ -7,11 +7,19 @@ import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
 import { CHIPS } from "@/lib/constants";
 
+interface Player {
+    nickname: string;
+    worth: number;
+    bet?: number;
+    disconnected: boolean;
+};
+
 export default function Page() {
     const { isHandshakeComplete } = useNickname();
-    const [worth, setWorth] = useState<number | undefined>(1111);
-    const [cash, setCash] = useState<number | undefined>(1111);
+    const [worth, setWorth] = useState<number | undefined>(undefined);
+    const [cash, setCash] = useState<number | undefined>(undefined);
     const [bet, setBet] = useState<number | undefined>(undefined);
+    const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
 
     useEffect(() => {
         if (!isHandshakeComplete) {
@@ -21,12 +29,17 @@ export default function Page() {
         socket.emit("join room");
 
         function joinedRoom(cash: number) {
-            console.log(`joined room with $${cash}`);
-            // setCash(cash);
+            setWorth(cash);
+            setCash(cash);
         }
 
-        function userJoined(nickname: string) {
-            console.log(`${nickname} joined.`);
+        function userJoined(nickname: string, worth?: number, bet?: number) {
+            setOtherPlayers(prev => [...prev, {
+                nickname,
+                worth: worth!,
+                bet: bet,
+                disconnected: false
+            }]);
         }
 
         function userReconnected(nickname: string) {
@@ -41,11 +54,22 @@ export default function Page() {
             console.log(`${nickname} removed.`);
         }
 
+        function userChangeBet(nickname: string, bet: number) {
+            setOtherPlayers(prev =>
+                prev.map(player =>
+                    player.nickname === nickname
+                        ? { ...player, bet }
+                        : player
+                )
+            );
+        }
+
         socket.on("joined room", joinedRoom);
         socket.on("user joined", userJoined);
         socket.on("user reconnected", userReconnected);
         socket.on("user disconnected", userDisconnected);
         socket.on("user removed", userRemoved);
+        socket.on("user change bet", userChangeBet);
 
         return () => {
             socket.off("joined room", joinedRoom);
@@ -53,6 +77,7 @@ export default function Page() {
             socket.off("user reconnected", userReconnected);
             socket.off("user disconnected", userDisconnected);
             socket.off("user removed", userRemoved);
+            socket.off("user change bet", userChangeBet);
         }
     }, [isHandshakeComplete]);
 
@@ -88,6 +113,7 @@ export default function Page() {
         if (chips[index] > 0) {
             setCash(prev => prev! - CHIPS[index]);
             setBet(prev => (prev ?? 0) + CHIPS[index]);
+            socket.emit("change bet", index, "add");
         }
     }
 
@@ -95,6 +121,7 @@ export default function Page() {
         if (betChips[index] > 0) {
             setCash(prev => prev! + CHIPS[index]);
             setBet(prev => prev! - CHIPS[index]);
+            socket.emit("change bet", index, "remove");
         }
     }
 
@@ -173,7 +200,7 @@ export default function Page() {
                                 className={`${chips[3] === 0 ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
                                 +
                             </button>
-                            <button 
+                            <button
                                 onClick={() => removeBet(3)}
                                 className={`${betChips[3] === 0 ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
                                 -
@@ -215,28 +242,57 @@ export default function Page() {
                     </div>
                 </div>
 
-                <div className="flex flex-col items-center gap-2">
-                    <h2 className="text-white italic font-semibold">
-                        FartyPlayer (120)
-                    </h2>
-                    <div className="bg-[#daa52039] rounded-full size-36">
-                        <div className="flex justify-center items-center h-full">
-                            <Chip color="white" amount={0} />
-                            <Chip color="red" amount={2} />
-                            <Chip color="green" amount={0} />
-                            <Chip color="black" amount={0} />
-                            <Chip color="blue" amount={0} />
+                {otherPlayers.length > 0 &&
+                    <div className="flex flex-col items-center gap-2">
+                        <h2 className="text-white italic font-semibold">
+                            {otherPlayers[0].nickname} ({otherPlayers[0].worth})
+                        </h2>
+                        <div className="bg-[#daa52039] rounded-full size-36">
+                            <div className="flex justify-center items-center h-full">
+                                {(() => {
+                                    const playerBetChips = otherPlayers[0].bet
+                                        ? convertToChips(otherPlayers[0].bet)
+                                        : [0, 0, 0, 0, 0];
+                                    return (
+                                        <>
+                                            <Chip color="white" amount={playerBetChips[0]} />
+                                            <Chip color="red" amount={playerBetChips[1]} />
+                                            <Chip color="green" amount={playerBetChips[2]} />
+                                            <Chip color="black" amount={playerBetChips[3]} />
+                                            <Chip color="blue" amount={playerBetChips[4]} />
+                                        </>
+                                    );
+                                })()}
+                            </div>
                         </div>
                     </div>
-                </div>
+                }
 
-                <div className="flex flex-col items-center gap-2">
-                    <h2 className="text-white italic font-semibold">
-                        Partypooper (100)
-                    </h2>
-                    <div className="bg-[#daa52039] rounded-full size-36">
+                {otherPlayers.length > 1 &&
+                    <div className="flex flex-col items-center gap-2">
+                        <h2 className="text-white italic font-semibold">
+                            {otherPlayers[1].nickname} ({otherPlayers[1].worth})
+                        </h2>
+                        <div className="bg-[#daa52039] rounded-full size-36">
+                            <div className="flex justify-center items-center h-full">
+                                {(() => {
+                                    const playerBetChips = otherPlayers[1].bet
+                                        ? convertToChips(otherPlayers[1].bet)
+                                        : [0, 0, 0, 0, 0];
+                                    return (
+                                        <>
+                                            <Chip color="white" amount={playerBetChips[0]} />
+                                            <Chip color="red" amount={playerBetChips[1]} />
+                                            <Chip color="green" amount={playerBetChips[2]} />
+                                            <Chip color="black" amount={playerBetChips[3]} />
+                                            <Chip color="blue" amount={playerBetChips[4]} />
+                                        </>
+                                    );
+                                })()}
+                            </div>
+                        </div>
                     </div>
-                </div>
+                }
             </div>
         </div>
     )

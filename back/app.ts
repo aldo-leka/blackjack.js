@@ -13,7 +13,7 @@ import { auth } from "./auth";
 import { logInfo, logWarning } from './log';
 import { IpApiResponse } from './models/ip-api';
 import { UserData } from './models/user-data';
-import { DAILY_REFILL_VALUE, MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID } from './constants';
+import { CHIPS, DAILY_REFILL_VALUE, MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID } from './constants';
 import prisma from './db';
 
 const app = express();
@@ -184,7 +184,53 @@ io.on('connection', async (socket) => {
         users.set(nickname, { ...user, room: roomFoundName });
         socket.join(roomFoundName);
         socket.emit("joined room", user.cash);
-        socket.to(roomFoundName).emit("user joined", nickname);
+        socket.to(roomFoundName).emit("user joined", nickname, user.cash, user.bet);
+    });
+
+    socket.on("change bet", (chipIndex: number, action: "add" | "remove") => {
+        const nickname = socket.data.nickname;
+        if (!nickname) {
+            logWarning("change bet: no socket nickname");
+            return;
+        }
+
+        const user = users.get(nickname);
+        if (!user) {
+            logWarning(`change bet: no user for nickname '${nickname}'`);
+            return;
+        }
+
+        if (!user.room) {
+            logWarning(`change bet: no room for user '${nickname}'`);
+            return;
+        }
+
+        if (chipIndex > CHIPS.length) {
+            logWarning(`change bet: invalid chip index from user ${nickname}`);
+            return;
+        }
+
+        if (!user.cash) {
+            logWarning(`change bet: no cash found for user ${nickname}`);
+        }
+
+        let chipValue = CHIPS[chipIndex];
+        if (action === "add") {
+            if (user.cash! < chipValue) {
+                logWarning(`add bet: invalid bet for user ${nickname} (chipValue: ${chipValue}, cash: ${user.cash})`);
+            }
+
+            user.bet = (user.bet ?? 0) + chipValue;
+        }
+        else if (action === "remove") {
+            if (!user.bet || user.bet < chipValue) {
+                logWarning(`remove bet: invalid bet for user ${nickname} (chipValue: ${chipValue}, bet: ${user.bet})`);
+            }
+
+            user.bet = user.bet! - chipValue;
+        }
+
+        socket.to(user.room).emit("user change bet", nickname, user.bet);
     });
 });
 
