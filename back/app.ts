@@ -182,9 +182,22 @@ io.on('connection', async (socket) => {
 
         // update user data with found room
         users.set(nickname, { ...user, room: roomFoundName });
+
         socket.join(roomFoundName);
-        socket.emit("joined room", user.cash);
-        socket.to(roomFoundName).emit("user joined", nickname, user.cash, user.bet);
+
+        const otherPlayers = Array.from(users.values())
+            .filter(u => u.room === roomFoundName && u.nickname !== nickname)
+            .map(u => ({
+                nickname: u.nickname,
+                countryCode: u.countryCode,
+                cash: u.cash,
+                bet: u.bet
+            }));
+
+        logInfo(JSON.stringify(otherPlayers));
+
+        socket.emit("joined room", user.cash, otherPlayers);
+        socket.to(roomFoundName).emit("user joined", nickname, user.countryCode, user.cash, user.bet);
     });
 
     socket.on("change bet", (chipIndex: number, action: "add" | "remove") => {

@@ -9,6 +9,7 @@ import { CHIPS } from "@/lib/constants";
 
 interface Player {
     nickname: string;
+    countryCode?: string;
     worth: number;
     bet?: number;
     disconnected: boolean;
@@ -28,14 +29,18 @@ export default function Page() {
 
         socket.emit("join room");
 
-        function joinedRoom(cash: number) {
+        function joinedRoom(cash: number, _otherPlayers: Player[]) {
+            console.log(`i joined room with cash ${cash}`, otherPlayers);
             setWorth(cash);
             setCash(cash);
+            setOtherPlayers(_otherPlayers.map(p => ({ ...p, disconnected: false })));
         }
 
-        function userJoined(nickname: string, worth?: number, bet?: number) {
+        function userJoined(nickname: string, countryCode?: string, worth?: number, bet?: number) {
+            console.log(`${nickname} joined, countryCode: ${countryCode}, worth: ${worth}, bet: ${bet}`);
             setOtherPlayers(prev => [...prev, {
                 nickname,
+                countryCode,
                 worth: worth!,
                 bet: bet,
                 disconnected: false
@@ -43,15 +48,32 @@ export default function Page() {
         }
 
         function userReconnected(nickname: string) {
-            console.log(`${nickname} reconnected.`);
+            console.log(`${nickname} reconnected`);
+            setOtherPlayers(prev =>
+                prev.map(player =>
+                    player.nickname === nickname
+                        ? { ...player, disconnected: false }
+                        : player
+                )
+            );
         }
 
         function userDisconnected(nickname: string) {
-            console.log(`${nickname} disconnected.`);
+            console.log(`${nickname} disconnected`);
+            setOtherPlayers(prev =>
+                prev.map(player =>
+                    player.nickname === nickname
+                        ? { ...player, disconnected: true }
+                        : player
+                )
+            );
         }
 
         function userRemoved(nickname: string) {
-            console.log(`${nickname} removed.`);
+            console.log(`${nickname} removed`);
+            setOtherPlayers(prev =>
+                prev.filter(player => player.nickname !== nickname)
+            );
         }
 
         function userChangeBet(nickname: string, bet: number) {
@@ -236,14 +258,16 @@ export default function Page() {
                         <button className="px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]">
                             <Repeat size={16} />
                         </button>
-                        <button className="px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]">
+                        <button
+                            className="px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
+                        >
                             2X
                         </button>
                     </div>
                 </div>
 
                 {otherPlayers.length > 0 &&
-                    <div className="flex flex-col items-center gap-2">
+                    <div className={`${otherPlayers[0].disconnected ? "opacity-50" : ""} flex flex-col items-center gap-2`}>
                         <h2 className="text-white italic font-semibold">
                             {otherPlayers[0].nickname} ({otherPlayers[0].worth})
                         </h2>
@@ -269,7 +293,7 @@ export default function Page() {
                 }
 
                 {otherPlayers.length > 1 &&
-                    <div className="flex flex-col items-center gap-2">
+                    <div className={`${otherPlayers[1].disconnected ? "opacity-50" : ""} flex flex-col items-center gap-2`}>
                         <h2 className="text-white italic font-semibold">
                             {otherPlayers[1].nickname} ({otherPlayers[1].worth})
                         </h2>
