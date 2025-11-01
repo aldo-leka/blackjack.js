@@ -2,6 +2,7 @@ import express from 'express';
 import itemRoutes from './routes/itemRoutes';
 import userRoutes from './routes/userRoutes';
 import cronRoutes from './routes/cronRoutes';
+import gameRoutes from './routes/gameRoutes';
 import { errorHandler } from './middlewares/errorHandler';
 import cors from "cors";
 import config from './config/config';
@@ -33,6 +34,7 @@ app.use(express.json());
 app.use('/api/items', itemRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/cron', cronRoutes);
+app.use('/api/game', gameRoutes);
 
 // Global error handler (should be after routes)
 app.use(errorHandler);
@@ -94,12 +96,13 @@ io.on('connection', async (socket) => {
 
         users.set(nickname, {
             ...(existing || {}),
+            nickname,
             socketId: socket.id,
             countryCode: countryCode || undefined,
             cash: tempUser.cash
         });
 
-        logInfo(`on nickname handshake: ${nickname} from ${countryCode ?? "somewhere"} (ip: ${ip}) with ${tempUser.cash} cash`);
+        logInfo(`on nickname handshake: ${nickname} from ${countryCode ?? "somewhere"} (ip: ${ip})`);
 
         socket.emit('nickname accepted', { cash: tempUser.cash });
     });
@@ -119,7 +122,7 @@ io.on('connection', async (socket) => {
             socket.to(user.room).emit("user disconnected", nickname);
         }
 
-        const timeoutId = setTimeout(() => {            
+        const timeoutId = setTimeout(() => {
             const countryCode = user.countryCode;
             const room = user.room;
 
@@ -158,19 +161,7 @@ io.on('connection', async (socket) => {
         //     return;
         // }
 
-        let rooms = new Map<string, UserData[]>();
-        for (let [userNickname, userData] of users) {
-            if (userData.room) {
-                const roomUsers = rooms.get(userData.room);
-                if (roomUsers) {
-                    rooms.set(userData.room, [...roomUsers, userData]);
-                }
-                else {
-                    rooms.set(userData.room, [userData]);
-                }
-            }
-        }
-
+        const rooms = getRooms();
         let roomFound = false;
         let roomFoundName = "";
         rooms.forEach((roomUsers, roomName) => {
@@ -190,12 +181,29 @@ io.on('connection', async (socket) => {
         }
 
         // update user data with found room
-        users.set(nickname, {...user, room: roomFoundName});
+        users.set(nickname, { ...user, room: roomFoundName });
         socket.join(roomFoundName);
-        socket.emit("joined room");
+        socket.emit("joined room", user.cash);
         socket.to(roomFoundName).emit("user joined", nickname);
     });
 });
+
+export function getRooms() {
+    let rooms = new Map<string, UserData[]>();
+    for (let [, user] of users) {
+        if (user.room) {
+            const roomUsers = rooms.get(user.room);
+            if (roomUsers) {
+                rooms.set(user.room, [...roomUsers, user]);
+            }
+            else {
+                rooms.set(user.room, [user]);
+            }
+        }
+    }
+
+    return rooms;
+}
 
 function getIp(socket: Socket) {
     const forwardedForHeaderValue = socket.handshake.headers['x-forwarded-for'];

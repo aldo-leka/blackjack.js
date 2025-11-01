@@ -3,22 +3,26 @@
 import Chip from "@/components/Chip";
 import { socket } from "@/lib/socket";
 import { Repeat } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
+import { CHIPS } from "@/lib/constants";
 
 export default function Page() {
     const { isHandshakeComplete } = useNickname();
+    const [worth, setWorth] = useState<number | undefined>(1111);
+    const [cash, setCash] = useState<number | undefined>(1111);
+    const [bet, setBet] = useState<number | undefined>(undefined);
 
     useEffect(() => {
-        // Only emit join room after handshake is complete
         if (!isHandshakeComplete) {
             return;
         }
 
         socket.emit("join room");
 
-        function joinedRoom() {
-            console.log("joined room");
+        function joinedRoom(cash: number) {
+            console.log(`joined room with $${cash}`);
+            // setCash(cash);
         }
 
         function userJoined(nickname: string) {
@@ -44,7 +48,6 @@ export default function Page() {
         socket.on("user removed", userRemoved);
 
         return () => {
-            console.log("clearing up the socket listeners");
             socket.off("joined room", joinedRoom);
             socket.off("user joined", userJoined);
             socket.off("user reconnected", userReconnected);
@@ -52,6 +55,48 @@ export default function Page() {
             socket.off("user removed", userRemoved);
         }
     }, [isHandshakeComplete]);
+
+    let chips = [0, 0, 0, 0, 0];
+    if (cash) {
+        chips = convertToChips(cash);
+    }
+
+    let betChips = [0, 0, 0, 0, 0];
+    if (bet) {
+        betChips = convertToChips(bet);
+    }
+
+    function convertToChips(cashAmount: number) {
+        let chips = [0, 0, 0, 0, 0];
+
+        for (let i = CHIPS.length - 1; i >= 0; i--) {
+            while (cashAmount / CHIPS[i] >= 1) {
+                chips[i] += 1;
+                cashAmount -= CHIPS[i];
+            }
+        }
+
+        if (cashAmount == 1) {
+            chips[0] += 1;
+            cashAmount -= 1;
+        }
+
+        return chips;
+    }
+
+    function addBet(index: number) {
+        if (chips[index] > 0) {
+            setCash(prev => prev! - CHIPS[index]);
+            setBet(prev => (prev ?? 0) + CHIPS[index]);
+        }
+    }
+
+    function removeBet(index: number) {
+        if (betChips[index] > 0) {
+            setCash(prev => prev! + CHIPS[index]);
+            setBet(prev => prev! - CHIPS[index]);
+        }
+    }
 
     return (
         <div className="flex flex-col items-center gap-4 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
@@ -79,33 +124,73 @@ export default function Page() {
             <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col items-center gap-2">
                     <h2 className="text-white italic font-semibold">
-                        You (220)
+                        You {worth && <>({worth} / {cash})</>}
                     </h2>
                     <div className="flex gap-1.5">
                         <div className="flex flex-col gap-2">
-                            <Chip color="white" amount={5} />
-                            <button className="bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]">+</button>
-                            <button className="bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]">-</button>
+                            <Chip color="white" amount={chips[0]} />
+                            <button
+                                onClick={() => addBet(0)}
+                                className={`${chips[0] === 0 ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                +
+                            </button>
+                            <button
+                                onClick={() => removeBet(0)}
+                                className={`${betChips[0] === 0 ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                -
+                            </button>
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Chip color="red" amount={10} />
-                            <button className="bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]">+</button>
-                            <button className="bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]">-</button>
+                            <Chip color="red" amount={chips[1]} />
+                            <button
+                                onClick={() => addBet(1)}
+                                className={`${chips[1] === 0 ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                +
+                            </button>
+                            <button
+                                onClick={() => removeBet(1)}
+                                className={`${betChips[1] === 0 ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                -
+                            </button>
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Chip color="green" amount={0} />
-                            <button className="bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]">+</button>
-                            <button className="bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]">-</button>
+                            <Chip color="green" amount={chips[2]} />
+                            <button
+                                onClick={() => addBet(2)}
+                                className={`${chips[2] === 0 ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                +
+                            </button>
+                            <button
+                                onClick={() => removeBet(2)}
+                                className={`${betChips[2] === 0 ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                -
+                            </button>
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Chip color="black" amount={25} />
-                            <button className="bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]">+</button>
-                            <button className="bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]">-</button>
+                            <Chip color="black" amount={chips[3]} />
+                            <button
+                                onClick={() => addBet(3)}
+                                className={`${chips[3] === 0 ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                +
+                            </button>
+                            <button 
+                                onClick={() => removeBet(3)}
+                                className={`${betChips[3] === 0 ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                -
+                            </button>
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Chip color="blue" amount={50} />
-                            <button className="bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]">+</button>
-                            <button className="bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]">-</button>
+                            <Chip color="blue" amount={chips[4]} />
+                            <button
+                                onClick={() => addBet(4)}
+                                className={`${chips[4] === 0 ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                +
+                            </button>
+                            <button
+                                onClick={() => removeBet(4)}
+                                className={`${betChips[4] === 0 ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                -
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -113,11 +198,11 @@ export default function Page() {
                 <div className="flex flex-col items-center gap-2">
                     <div className="bg-[#daa52080] rounded-full size-36 border-4 border-[#DAA520]">
                         <div className="flex justify-center items-center h-full">
-                            <Chip color="white" amount={0} />
-                            <Chip color="red" amount={2} />
-                            <Chip color="green" amount={0} />
-                            <Chip color="black" amount={0} />
-                            <Chip color="blue" amount={0} />
+                            <Chip color="white" amount={betChips[0]} />
+                            <Chip color="red" amount={betChips[1]} />
+                            <Chip color="green" amount={betChips[2]} />
+                            <Chip color="black" amount={betChips[3]} />
+                            <Chip color="blue" amount={betChips[4]} />
                         </div>
                     </div>
                     <div className="flex gap-2 justify-between">
