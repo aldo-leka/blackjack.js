@@ -70,26 +70,27 @@ io.on('connection', async (socket) => {
                 socket.to(existing.room).emit("user reconnected", nickname);
             }
 
-            logInfo(`${nickname} from ${existing.countryCode ?? "somewhere"} reconnected before timeout`);
+            logInfo(`${nickname} from ${existing.countryCode} reconnected before timeout`);
         }
 
         socket.data.nickname = nickname;
 
         const ip = getIp(socket);
-        const countryCode = existing?.countryCode || await getCountryCodeFromIP(ip);
+        const countryCode = existing?.countryCode || await getCountryCodeFromIP(ip) || "somewhere";
 
+        /** Don't allow users to get a refill if same nickname & country */
         const tempUser = await prisma.tempUser.upsert({
             where: {
-                nickname_ip: { nickname, ip }
+                nickname_countryCode: { nickname, countryCode }
             },
             update: {
-                countryCode: countryCode || undefined,
+                ip,
                 updatedAt: new Date()
             },
             create: {
                 nickname,
                 ip,
-                countryCode: countryCode || undefined,
+                countryCode,
                 cash: DAILY_REFILL_VALUE,
             }
         });
@@ -98,11 +99,11 @@ io.on('connection', async (socket) => {
             ...(existing || {}),
             nickname,
             socketId: socket.id,
-            countryCode: countryCode || undefined,
+            countryCode,
             cash: tempUser.cash
         });
 
-        logInfo(`on nickname handshake: ${nickname} from ${countryCode ?? "somewhere"} (ip: ${ip})`);
+        logInfo(`on nickname handshake: ${nickname} from ${countryCode} (ip: ${ip})`);
 
         socket.emit('nickname accepted', { cash: tempUser.cash });
     });
