@@ -94,6 +94,7 @@ export default function Page() {
         }
 
         function userChangeBet(nickname: string, bet: number) {
+            console.log(`userChangeBet: user: ${nickname}, bet: ${bet}`);
             setOtherPlayers(prev =>
                 prev.map(player =>
                     player.nickname === nickname

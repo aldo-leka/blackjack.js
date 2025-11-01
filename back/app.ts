@@ -64,12 +64,6 @@ io.on('connection', async (socket) => {
 
             clearTimeout(disconnects.get(nickname));
             disconnects.delete(nickname);
-
-            if (existing.room) {
-                socket.join(existing.room);
-                socket.to(existing.room).emit("user reconnected", nickname);
-            }
-
             logInfo(`${nickname} from ${existing.countryCode} reconnected before timeout`);
         }
 
@@ -165,7 +159,9 @@ io.on('connection', async (socket) => {
                     bet: u.bet
                 }));
 
+            socket.join(user.room); // sanity check
             socket.emit("already in room", user.countryCode, user.cash, user.bet, otherPlayers);
+            socket.to(user.room).emit("user reconnected", nickname);
             return;
         }
 
@@ -237,6 +233,7 @@ io.on('connection', async (socket) => {
         if (action === "add") {
             if (user.cash! < chipValue) {
                 logWarning(`add bet: invalid bet for user ${nickname} (chipValue: ${chipValue}, cash: ${user.cash})`);
+                return;
             }
 
             user.bet = (user.bet ?? 0) + chipValue;
@@ -244,6 +241,7 @@ io.on('connection', async (socket) => {
         else if (action === "remove") {
             if (!user.bet || user.bet < chipValue) {
                 logWarning(`remove bet: invalid bet for user ${nickname} (chipValue: ${chipValue}, bet: ${user.bet})`);
+                return;
             }
 
             user.bet = user.bet! - chipValue;
