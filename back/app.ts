@@ -154,13 +154,20 @@ io.on('connection', async (socket) => {
             return;
         }
 
-        // TODO What should happen if a user is already in a room?
-        // e.g. if they refresh the page?
-        // They should get fresh game data, thas' it. 
-        // if (user.room) {
-        //     socket.emit("already in room", user.room);
-        //     return;
-        // }
+        // user already has a room aka is reconnecting
+        if (user.room) {
+            const otherPlayers = Array.from(users.values())
+                .filter(u => u.room === user.room && u.nickname !== nickname)
+                .map(u => ({
+                    nickname: u.nickname,
+                    countryCode: u.countryCode,
+                    cash: u.cash,
+                    bet: u.bet
+                }));
+
+            socket.emit("already in room", user.countryCode, user.cash, user.bet, otherPlayers);
+            return;
+        }
 
         const rooms = getRooms();
         let roomFound = false;
@@ -195,9 +202,7 @@ io.on('connection', async (socket) => {
                 bet: u.bet
             }));
 
-        logInfo(JSON.stringify(otherPlayers));
-
-        socket.emit("joined room", user.cash, otherPlayers);
+        socket.emit("joined room", user.cash, user.countryCode, otherPlayers);
         socket.to(roomFoundName).emit("user joined", nickname, user.countryCode, user.cash, user.bet);
     });
 

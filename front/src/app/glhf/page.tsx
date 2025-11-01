@@ -9,16 +9,22 @@ import { CHIPS } from "@/lib/constants";
 
 interface Player {
     nickname: string;
-    countryCode?: string;
+    countryCode: string;
     worth: number;
     bet?: number;
     disconnected: boolean;
 };
 
+interface ApiPlayer {
+    nickname: string;
+    countryCode: string;
+    cash?: number;
+    bet?: number;
+}
+
 export default function Page() {
     const { isHandshakeComplete } = useNickname();
     const [worth, setWorth] = useState<number | undefined>(undefined);
-    const [cash, setCash] = useState<number | undefined>(undefined);
     const [bet, setBet] = useState<number | undefined>(undefined);
     const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
 
@@ -29,26 +35,37 @@ export default function Page() {
 
         socket.emit("join room");
 
-        function joinedRoom(cash: number, _otherPlayers: Player[]) {
-            console.log(`i joined room with cash ${cash}`, otherPlayers);
+        function joinedRoom(cash: number, countryCode: string, _otherPlayers: ApiPlayer[]) {
+            console.log(`joinedRoom: i joined room with cash ${cash}, other players: ${JSON.stringify(_otherPlayers)}`);
             setWorth(cash);
-            setCash(cash);
-            setOtherPlayers(_otherPlayers.map(p => ({ ...p, disconnected: false })));
+            setOtherPlayers(_otherPlayers.map(p => ({
+                nickname: p.nickname,
+                countryCode: p.countryCode,
+                worth: p.cash!,
+                bet: p.bet,
+                disconnected: false
+            })));
         }
 
-        function userJoined(nickname: string, countryCode?: string, worth?: number, bet?: number) {
-            console.log(`${nickname} joined, countryCode: ${countryCode}, worth: ${worth}, bet: ${bet}`);
-            setOtherPlayers(prev => [...prev, {
-                nickname,
-                countryCode,
-                worth: worth!,
-                bet: bet,
-                disconnected: false
-            }]);
+        function userJoined(nickname: string, countryCode: string, cash?: number, bet?: number) {
+            console.log(`userJoined: ${nickname} joined, countryCode: ${countryCode}, worth: ${worth}, bet: ${bet}`);
+            setOtherPlayers(prev => {
+                const exists = prev.some(player => player.nickname === nickname);
+                if (exists) {
+                    return prev;
+                }
+                return [...prev, {
+                    nickname,
+                    countryCode,
+                    worth: cash!,
+                    bet: bet,
+                    disconnected: false
+                }];
+            });
         }
 
         function userReconnected(nickname: string) {
-            console.log(`${nickname} reconnected`);
+            console.log(`userReconnected: ${nickname} reconnected`);
             setOtherPlayers(prev =>
                 prev.map(player =>
                     player.nickname === nickname
@@ -59,7 +76,7 @@ export default function Page() {
         }
 
         function userDisconnected(nickname: string) {
-            console.log(`${nickname} disconnected`);
+            console.log(`userDisconnected: ${nickname} disconnected`);
             setOtherPlayers(prev =>
                 prev.map(player =>
                     player.nickname === nickname
@@ -70,7 +87,7 @@ export default function Page() {
         }
 
         function userRemoved(nickname: string) {
-            console.log(`${nickname} removed`);
+            console.log(`userRemoved: ${nickname} removed`);
             setOtherPlayers(prev =>
                 prev.filter(player => player.nickname !== nickname)
             );
@@ -86,12 +103,26 @@ export default function Page() {
             );
         }
 
+        function alreadyInRoom(countryCode: string, cash?: number, bet?: number, _otherPlayers?: ApiPlayer[]) {
+            console.log(`alreadyInRoom: cash: ${cash}, bet: ${bet}, other players: ${JSON.stringify(_otherPlayers)}`);
+            setWorth(cash);
+            setBet(bet);
+            setOtherPlayers(_otherPlayers!.map(p => ({
+                nickname: p.nickname,
+                countryCode: p.countryCode,
+                worth: p.cash!,
+                bet: p.bet,
+                disconnected: false
+            })));
+        }
+
         socket.on("joined room", joinedRoom);
         socket.on("user joined", userJoined);
         socket.on("user reconnected", userReconnected);
         socket.on("user disconnected", userDisconnected);
         socket.on("user removed", userRemoved);
         socket.on("user change bet", userChangeBet);
+        socket.on("already in room", alreadyInRoom);
 
         return () => {
             socket.off("joined room", joinedRoom);
@@ -100,9 +131,11 @@ export default function Page() {
             socket.off("user disconnected", userDisconnected);
             socket.off("user removed", userRemoved);
             socket.off("user change bet", userChangeBet);
+            socket.off("already in room", alreadyInRoom);
         }
     }, [isHandshakeComplete]);
 
+    const cash = (worth ?? 0) - (bet ?? 0);
     let chips = [0, 0, 0, 0, 0];
     if (cash) {
         chips = convertToChips(cash);
@@ -133,7 +166,6 @@ export default function Page() {
 
     function addBet(index: number) {
         if (chips[index] > 0) {
-            setCash(prev => prev! - CHIPS[index]);
             setBet(prev => (prev ?? 0) + CHIPS[index]);
             socket.emit("change bet", index, "add");
         }
@@ -141,7 +173,6 @@ export default function Page() {
 
     function removeBet(index: number) {
         if (betChips[index] > 0) {
-            setCash(prev => prev! + CHIPS[index]);
             setBet(prev => prev! - CHIPS[index]);
             socket.emit("change bet", index, "remove");
         }
