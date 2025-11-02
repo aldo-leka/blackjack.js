@@ -45,40 +45,83 @@ For clarification (from Claude):
 ```prisma migrate reset```
 
 ## Game features
-### Streak
-| Day  | Reward  |
-| ---- | ------- |
-| 1    | $10     |
-| 2    | $12     |
-| 3    | $15     |
-| 4    | $18     |
-| 5    | $20     |
-| 6    | $25     |
-| 7    | $40 + Spin wheel |
-| 8    | $50     |
-| 14   | $75 + exclusive table skin |
-| 21   | $100 + “High Roller Streak” title |
-| 30   | $150 + VIP chip bundle + profile badge |
-| 31   | $50 + bonus XP |
-| 32   | $50 + bonus ... |
-| 33   | $50 + bonus ... |
-| 34   | $60     |
-| 35   | $60     |
-| 36   | $70     |
-| 37   | Jackpot wheel |
+## Streak
 
-...then repeat but slightly strong each 7-day cycle.
+### Cycle 1: Days 1-7
+| Day | Reward |
+| --- | ------ |
+| 1   | $10    |
+| 2   | $12    |
+| 3   | $15    |
+| 4   | $18    |
+| 5   | $20    |
+| 6   | $25    |
+| 7   | $40 + Spin Wheel |
 
-Guests (not logged in users) only get up to 3 days streak max before they're prompted to login.
+### Cycle 2: Days 8-14
+| Day | Reward |
+| --- | ------ |
+| 8   | $15    |
+| 9   | $18    |
+| 10  | $22    |
+| 11  | $27    |
+| 12  | $30    |
+| 13  | $38    |
+| 14  | $60 + Spin Wheel + Exclusive Table Skin |
 
-### Weekly spin wheel
-| Price  | Probability  |
-| ------ | ------------ |
-| $500   | 40%          |
-| $1000  | 30%          |
-| $2500  | 20%          |
-| $10000 | 9%           |
-| $100000| 1%           |
+### Cycle 3: Days 15-21
+| Day | Reward |
+| --- | ------ |
+| 15  | $22    |
+| 16  | $27    |
+| 17  | $33    |
+| 18  | $40    |
+| 19  | $45    |
+| 20  | $57    |
+| 21  | $90 + Spin Wheel + "High Roller Streak" Title |
+
+### Cycle 4: Days 22-28
+| Day | Reward |
+| --- | ------ |
+| 22  | $33    |
+| 23  | $40    |
+| 24  | $50    |
+| 25  | $60    |
+| 26  | $68    |
+| 27  | $86    |
+| 28  | $135 + Spin Wheel + Profile Badge |
+
+### Cycle 5+: Days 29-35, 36-42, etc.
+| Day Pattern | Reward Formula |
+| ----------- | -------------- |
+| Day 1 of cycle | Previous cycle Day 1 × 1.5 |
+| Day 2 of cycle | Previous cycle Day 2 × 1.5 |
+| Day 3 of cycle | Previous cycle Day 3 × 1.5 |
+| Day 4 of cycle | Previous cycle Day 4 × 1.5 |
+| Day 5 of cycle | Previous cycle Day 5 × 1.5 |
+| Day 6 of cycle | Previous cycle Day 6 × 1.5 |
+| Day 7 of cycle | Previous cycle Day 7 × 1.5 + Spin Wheel + Rotating Cosmetic |
+
+**Multiplier:** Each 7-day cycle multiplies the previous cycle's rewards by **1.5x**
+
+**Special Milestones:**
+- Day 30: $200 + VIP Chip Bundle + Platinum Badge
+- Day 60: $500 + Exclusive Avatar Frame
+- Day 90: $1,000 + "Legendary Dedication" Title
+- Day 180: $2,500 + Golden Card Deck Skin
+- Day 365: $10,000 + "Annual Champion" Title + Special Animation
+
+**Guest Limit:** Unregistered users capped at 7-day streak (Cycle 1 only)
+
+### Weekly Spin Wheel
+| Prize   | Probability |
+| ------- | ----------- |
+| $50     | 45%         |
+| $100    | 30%         |
+| $250    | 15%         |
+| $500    | 7%          |
+| $2,500  | 2.5%        |
+| $10,000 | 0.5%        |
 
 ### Leveling
 | Level  | Title     |
@@ -115,7 +158,6 @@ XP comes from:
 ### Free Chip Options
 - **Bankruptcy Protection:** 75 chips (auto-granted next day after hitting $0)
 - **Watch & Earn:** 25 chips per ad (max 3 ads/day = 75 chips/day)
-- **Hourly Bonus:** 10 chips every 4 hours (max 60 chips/day)
 
 ### Profile card (shareable at /u/nickname)
 - Nickname
@@ -126,3 +168,11 @@ XP comes from:
 - Streak days
 
 e.g. "Aldo · 💰 Net worth: $487 · ♠🔥 67% win streak · 🥇 Top 8% player"
+
+### Table Stakes (maybe)
+| Table Type  | Min Bet | Max Bet | Unlock Level |
+| ----------- | ------- | ------- | ------------ |
+| Beginner    | $5      | $50     | Level 1      |
+| Standard    | $25     | $500    | Level 10     |
+| High Roller | $100    | $5,000  | Level 25     |
+| VIP         | $500    | $50,000 | Level 50     |
