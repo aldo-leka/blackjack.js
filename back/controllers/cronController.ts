@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../db';
 import { logInfo, logError } from '../log';
-import { DAILY_REFILL_VALUE } from '../constants';
+import { DAILY_REFILL_VALUE } from '../util';
 import config from '../config/config';
 
 export const dailyRefillTempUsers = async (req: Request, res: Response) => {

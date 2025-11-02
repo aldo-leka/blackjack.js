@@ -65,11 +65,11 @@ For clarification (from Claude):
 | 34   | $60     |
 | 35   | $60     |
 | 36   | $70     |
-| 34   | Jackpot wheel |
+| 37   | Jackpot wheel |
 
 ...then repeat but slightly strong each 7-day cycle.
 
-Guests (not logged in users) only get up to 7 days streak max.
+Guests (not logged in users) only get up to 3 days streak max before they're prompted to login.
 
 ### Weekly spin wheel
 | Price  | Probability  |
@@ -91,23 +91,31 @@ Guests (not logged in users) only get up to 7 days streak max.
 | 100    | Grandmaster |
 
 XP comes from:
-- Playing hands +1 XP
-- Winning hand +2 XP
-- Winning a double down +4 XP
-- Winning both on a split +6 XP
-- Winning 3 hands in a row +3 XP bonus
-- Winning 5 hands in a row +8 XP bonus
-- Winning 8 hands in a row +15 XP bonus
+- Playing hands +2 XP
+- Winning hand +3 XP
+- Winning a double down +5 XP
+- Winning both on a split +8 XP
+- Getting a blackjack +4 XP
+- Winning 3 hands in a row +5 XP bonus
+- Winning 5 hands in a row +12 XP bonus
+- Winning 8 hands in a row +20 XP bonus
+- Winning 10 hands in a row +30 XP bonus
 
-### Chip packages
-| Price  | Multiplier | Chips given | Label
-| ------ | ---------- | ----------- | ----- |
-| $0.99  | 1x         | 100 chips   | Starter Pack |
-| $4.99  | 1.5x       | 750 chips   | Value Pack |
-| $9.99  | 2x         | 2000 chips  | Pro Pack |
-| $19.99 | 2.5x       | 5000 chips  | High Roller Pack |
-| $49.99 | 3x         | 15000 chips | VIP Pack |
-| Custom | 2x         | 200 chips per $1 | Flexible Pack |
+### Chip Packages
+| Price  | Chips Given | Bonus Chips | Total Value | Label |
+| ------ | ----------- | ----------- | ----------- | ----- |
+| $0.99  | 150         | —           | 150         | Starter Pack |
+| $2.99  | 450         | +50         | 500         | Quick Boost |
+| $4.99  | 750         | +150        | 900         | Value Pack |
+| $9.99  | 1,500       | +500        | 2,000       | Pro Pack |
+| $19.99 | 3,500       | +1,000      | 4,500       | High Roller Pack |
+| $49.99 | 10,000      | +2,500      | 12,500      | VIP Pack |
+| $99.99 | 22,000      | +6,000      | 28,000      | Whale Pack |
+
+### Free Chip Options
+- **Bankruptcy Protection:** 75 chips (auto-granted next day after hitting $0)
+- **Watch & Earn:** 25 chips per ad (max 3 ads/day = 75 chips/day)
+- **Hourly Bonus:** 10 chips every 4 hours (max 60 chips/day)
 
 ### Profile card (shareable at /u/nickname)
 - Nickname

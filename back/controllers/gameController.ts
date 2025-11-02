@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { getRooms } from '../app';
-import { MAX_PLAYERS_PER_ROOM } from '../constants';
+import { MAX_PLAYERS_PER_ROOM } from '../util';
 
 export const getRoomsAscii = (req: Request, res: Response) => {
     try {

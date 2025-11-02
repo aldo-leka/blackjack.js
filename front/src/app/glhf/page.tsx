@@ -291,8 +291,7 @@ export default function Page() {
                                 className="transition-all duration-1000 ease-linear"
                             />
                         </svg>
-
-                        {/* Betting circle */}
+                        
                         <div className="bg-[#daa52080] rounded-full size-36 border-4 border-transparent">
                             <div className="flex justify-center items-center h-full">
                                 <Chip color="white" amount={betChips[0]} />

@@ -13,7 +13,7 @@ import { auth } from "./auth";
 import { logInfo, logWarning } from './log';
 import { IpApiResponse } from './models/ip-api';
 import { UserData } from './models/user-data';
-import { CHIPS, DAILY_REFILL_VALUE, MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID } from './constants';
+import { CHIPS, DAILY_REFILL_VALUE, MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID } from './util';
 import prisma from './db';
 
 const app = express();
