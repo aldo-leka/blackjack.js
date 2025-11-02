@@ -34,7 +34,23 @@ export default function Page() {
     const { isHandshakeComplete } = useNickname();
     const [worth, setWorth] = useState<number | undefined>(undefined);
     const [bet, setBet] = useState<number | undefined>(undefined);
-    const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
+    // const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
+    const [otherPlayers, setOtherPlayers] = useState<Player[]>([
+        {
+            nickname: "FartyPlayer",
+            countryCode: "somewhere",
+            worth: 120,
+            bet: 10,
+            disconnected: false,
+        },
+        {
+            nickname: "Partypooper",
+            countryCode: "somewhere",
+            worth: 100,
+            bet: 80,
+            disconnected: true,
+        }
+    ]);
     const [timeLeft, setTimeLeft] = useState<number | undefined>();
     const [totalTime, setTotalTime] = useState<number | undefined>();
     const [phase, setPhase] = useState<"bet" | "deal_initial_cards" | "players_play" | "dealer_play" | "payout">("players_play");
@@ -134,7 +150,7 @@ export default function Page() {
 
             setWorth(me.cash);
             setBet(me.bet);
-            setOtherPlayers(otherPlayers);
+            // setOtherPlayers(otherPlayers);
 
             console.log(`alreadyInRoom: cash: ${me.cash}, bet: ${me.bet}, other players: ${JSON.stringify(otherPlayers)}`);
         }
@@ -205,36 +221,44 @@ export default function Page() {
     }
 
     return (
-        <div className="flex flex-col items-center gap-4 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
-            <div className="w-full max-w-7xl px-12 grid grid-cols-3">
-                <div></div>
-                <div className="relative bg-[#daa52080] rounded-full size-48 -mt-24 flex items-center justify-center">
-                    <div className="absolute text-white font-semibold italic mt-8">
-                        Dealer
-                    </div>
-                    <div className="relative h-24 w-32 -bottom-25">
-                        <div className="absolute">
-                            <Image src="/images/card back red.png" alt="" width={60} height={87} />
+        <div className="grid grid-rows-4 grid-cols-2 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
+            <div id="dealer-zone" className="col-span-2">
+                <div className="flex flex-col items-center">
+                    <div className="w-full max-w-7xl px-12 grid grid-cols-3">
+                        <div></div>
+                        <div className="relative bg-[#daa52080] rounded-full size-48 -mt-24 flex items-center justify-center">
+                            <div className="absolute text-white font-semibold italic mt-8">
+                                Dealer
+                            </div>
+                            <div className="relative h-24 w-32 -bottom-25">
+                                <div className="absolute">
+                                    <Image src="/images/card back red.png" alt="" width={60} height={87} />
+                                </div>
+                                <div className="absolute left-4">
+                                    <Image src="/images/2_of_clubs.png" alt="" width={60} height={87} />
+                                </div>
+                            </div>
                         </div>
-                        <div className="absolute left-4">
-                            <Image src="/images/2_of_clubs.png" alt="" width={60} height={87} />
+                        <div className="text-[#DAA520] text-center cursor-pointer ml-8">
+                            <div>
+                                X
+                            </div>
+                            <div>
+                                Quit
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div className="text-[#DAA520] text-center cursor-pointer ml-8">
-                    <div>
-                        X
-                    </div>
-                    <div>
-                        Quit
-                    </div>
+                    {
+                        phase === "bet" &&
+                        <div className="text-white italic font-semibold mt-12">
+                            Place your bets
+                        </div>
+                    }
                 </div>
             </div>
-            <div className="text-white italic font-semibold mt-8">
-                Place your bets
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col items-center gap-2">
+
+            <div id="player-zone" className="col-span-2 grid grid-cols-2 gap-8 px-8">
+                <div className="flex flex-col items-center gap-2 justify-self-end">
                     <h2 className="text-white italic font-semibold">
                         You {worth && <>(${worth})</>}
                     </h2>
@@ -307,7 +331,7 @@ export default function Page() {
                     </div>
                 </div>
 
-                <div className="flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-2 justify-self-start">
                     <div className="relative size-36">
                         {totalTime && timeLeft ? (
                             <svg className="absolute inset-0 -rotate-90" viewBox="0 0 144 144">
@@ -349,64 +373,74 @@ export default function Page() {
                         </button>
                     </div>
                 </div>
+            </div>
 
-                {otherPlayers.length > 0 &&
-                    <div className={`${otherPlayers[0].disconnected ? "opacity-50" : ""} flex flex-col items-center gap-2`}>
-                        <h2 className="text-white italic font-semibold">
-                            {otherPlayers[0].nickname} (${otherPlayers[0].worth})
-                        </h2>
-                        <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-36">
-                            <div className="flex justify-center items-end text-white italic font-semibold pb-1">
-                                {otherPlayers[0].bet ? `$${otherPlayers[0].bet}` : ''}
-                            </div>
-                            <div className="flex justify-center items-center h-full">
-                                {(() => {
-                                    const playerBetChips = otherPlayers[0].bet
-                                        ? convertToChips(otherPlayers[0].bet)
-                                        : [0, 0, 0, 0, 0];
-                                    return (
-                                        <>
-                                            <Chip color="white" amount={playerBetChips[0]} />
-                                            <Chip color="red" amount={playerBetChips[1]} />
-                                            <Chip color="green" amount={playerBetChips[2]} />
-                                            <Chip color="black" amount={playerBetChips[3]} />
-                                            <Chip color="blue" amount={playerBetChips[4]} />
-                                        </>
-                                    );
-                                })()}
+            <div id="other-players" className="col-span-2 grid grid-cols-2 gap-8 px-8">
+                <div className="justify-self-end">
+                    {otherPlayers.length > 0 &&
+                        <div className={`${otherPlayers[0].disconnected ? "opacity-50" : ""} flex flex-col items-center gap-2`}>
+                            <h2 className="text-white italic font-semibold">
+                                {otherPlayers[0].nickname} (${otherPlayers[0].worth})
+                            </h2>
+                            <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-36">
+                                <div className="flex justify-center items-end text-white italic font-semibold pb-1">
+                                    {otherPlayers[0].bet ? `$${otherPlayers[0].bet}` : ''}
+                                </div>
+                                <div className="flex justify-center items-center h-full">
+                                    {(() => {
+                                        const playerBetChips = otherPlayers[0].bet
+                                            ? convertToChips(otherPlayers[0].bet)
+                                            : [0, 0, 0, 0, 0];
+                                        return (
+                                            <>
+                                                <Chip color="white" amount={playerBetChips[0]} />
+                                                <Chip color="red" amount={playerBetChips[1]} />
+                                                <Chip color="green" amount={playerBetChips[2]} />
+                                                <Chip color="black" amount={playerBetChips[3]} />
+                                                <Chip color="blue" amount={playerBetChips[4]} />
+                                            </>
+                                        );
+                                    })()}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                }
+                    }
+                </div>
 
-                {otherPlayers.length > 1 &&
-                    <div className={`${otherPlayers[1].disconnected ? "opacity-50" : ""} flex flex-col items-center gap-2`}>
-                        <h2 className="text-white italic font-semibold">
-                            {otherPlayers[1].nickname} (${otherPlayers[1].worth})
-                        </h2>
-                        <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-36">
-                            <div className="flex justify-center items-end text-white italic font-semibold pb-1">
-                                {otherPlayers[1].bet ? `$${otherPlayers[1].bet}` : ''}
-                            </div>
-                            <div className="flex justify-center items-center h-full">
-                                {(() => {
-                                    const playerBetChips = otherPlayers[1].bet
-                                        ? convertToChips(otherPlayers[1].bet)
-                                        : [0, 0, 0, 0, 0];
-                                    return (
-                                        <>
-                                            <Chip color="white" amount={playerBetChips[0]} />
-                                            <Chip color="red" amount={playerBetChips[1]} />
-                                            <Chip color="green" amount={playerBetChips[2]} />
-                                            <Chip color="black" amount={playerBetChips[3]} />
-                                            <Chip color="blue" amount={playerBetChips[4]} />
-                                        </>
-                                    );
-                                })()}
+                <div className="justify-self-start">
+                    {otherPlayers.length > 1 &&
+                        <div className={`${otherPlayers[1].disconnected ? "opacity-50" : ""} flex flex-col items-center gap-2`}>
+                            <h2 className="text-white italic font-semibold">
+                                {otherPlayers[1].nickname} (${otherPlayers[1].worth})
+                            </h2>
+                            <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-36">
+                                <div className="flex justify-center items-end text-white italic font-semibold pb-1">
+                                    {otherPlayers[1].bet ? `$${otherPlayers[1].bet}` : ''}
+                                </div>
+                                <div className="flex justify-center items-center h-full">
+                                    {(() => {
+                                        const playerBetChips = otherPlayers[1].bet
+                                            ? convertToChips(otherPlayers[1].bet)
+                                            : [0, 0, 0, 0, 0];
+                                        return (
+                                            <>
+                                                <Chip color="white" amount={playerBetChips[0]} />
+                                                <Chip color="red" amount={playerBetChips[1]} />
+                                                <Chip color="green" amount={playerBetChips[2]} />
+                                                <Chip color="black" amount={playerBetChips[3]} />
+                                                <Chip color="blue" amount={playerBetChips[4]} />
+                                            </>
+                                        );
+                                    })()}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                }
+                    }
+                </div>
+            </div>
+
+            <div id="chat" className="col-span-2">
+
             </div>
         </div>
     )
