@@ -59,15 +59,45 @@ For clarification (from Claude):
 | 14   | $75 + exclusive table skin |
 | 21   | $100 + “High Roller Streak” title |
 | 30   | $150 + VIP chip bundle + profile badge |
+| 31   | $50 + bonus XP |
+| 32   | $50 + bonus ... |
+| 33   | $50 + bonus ... |
+| 34   | $60     |
+| 35   | $60     |
+| 36   | $70     |
+| 34   | Jackpot wheel |
 
+...then repeat but slightly strong each 7-day cycle.
+
+Guests (not logged in users) only get up to 7 days streak max.
 
 ### Weekly spin wheel
 | Price  | Probability  |
 | ------ | ------------ |
-| $100   | 40%          |
-| $250   | 30%          |
-| $500   | 20%          |
-| $1000  | 2%           |
+| $500   | 40%          |
+| $1000  | 30%          |
+| $2500  | 20%          |
+| $10000 | 9%           |
+| $100000| 1%           |
+
+### Leveling
+| Level  | Title     |
+| ------ | --------  |
+| 1      | Recruit   |
+| 5      | Cadet     |
+| 10     | Ace       |
+| 25     | Captain   |
+| 50     | General   |
+| 100    | Grandmaster |
+
+XP comes from:
+- Playing hands +1 XP
+- Winning hand +2 XP
+- Winning a double down +4 XP
+- Winning both on a split +6 XP
+- Winning 3 hands in a row +3 XP bonus
+- Winning 5 hands in a row +8 XP bonus
+- Winning 8 hands in a row +15 XP bonus
 
 ### Chip packages
 | Price  | Multiplier | Chips given | Label
@@ -86,3 +116,5 @@ For clarification (from Claude):
 - Rank (e.g. #218 global)
 - Badge
 - Streak days
+
+e.g. "Aldo · 💰 Net worth: $487 · ♠🔥 67% win streak · 🥇 Top 8% player"
