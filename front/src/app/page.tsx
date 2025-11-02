@@ -14,7 +14,7 @@ export default function Page() {
       <div
         className="text-center p-2 text-[#016F32] font-semibold bg-[#DAA520] w-1/2 rounded-sm cursor-pointer"
         onClick={() => {
-          router.push("/glhf");
+          router.push("/blackjack");
         }}
       >
         START GAME

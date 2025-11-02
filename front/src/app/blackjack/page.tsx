@@ -6,6 +6,7 @@ import { Repeat } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
 import { CHIPS } from "@/lib/util";
+import Image from "next/image";
 
 interface Player {
     nickname: string;
@@ -36,6 +37,7 @@ export default function Page() {
     const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
     const [timeLeft, setTimeLeft] = useState<number | undefined>();
     const [totalTime, setTotalTime] = useState<number | undefined>();
+    const [phase, setPhase] = useState<"bet" | "deal_initial_cards" | "players_play" | "dealer_play" | "payout">("players_play");
 
     useEffect(() => {
         if (!isHandshakeComplete) {
@@ -206,9 +208,17 @@ export default function Page() {
         <div className="flex flex-col items-center gap-4 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
             <div className="w-full max-w-7xl px-12 flex justify-between items-start">
                 <div className="flex-1"></div>
-                <div className="bg-[#daa52080] rounded-full size-48 -mt-24 flex items-end justify-center">
-                    <div className="text-white font-semibold italic mb-16">
+                <div className="relative bg-[#daa52080] rounded-full size-48 -mt-24 flex items-center justify-center">
+                    <div className="absolute text-white font-semibold italic mt-8">
                         Dealer
+                    </div>
+                    <div className="relative h-24 w-32 -bottom-25">
+                        <div className="absolute">
+                            <Image src="/images/card back red.png" alt="" width={60} height={87} />
+                        </div>
+                        <div className="absolute left-4">
+                            <Image src="/images/2_of_clubs.png" alt="" width={60} height={87} />
+                        </div>
                     </div>
                 </div>
                 <div className="flex-1 flex justify-end">
@@ -222,7 +232,7 @@ export default function Page() {
                     </div>
                 </div>
             </div>
-            <div className="text-white italic font-semibold">
+            <div className="text-white italic font-semibold mt-8">
                 Place your bets
             </div>
             <div className="grid grid-cols-2 gap-4">
