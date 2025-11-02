@@ -43,3 +43,46 @@ For clarification (from Claude):
 
 ### drop the development db
 ```prisma migrate reset```
+
+## Game features
+### Streak
+| Day  | Reward  |
+| ---- | ------- |
+| 1    | $10     |
+| 2    | $12     |
+| 3    | $15     |
+| 4    | $18     |
+| 5    | $20     |
+| 6    | $25     |
+| 7    | $40 + Spin wheel |
+| 8    | $50     |
+| 14   | $75 + exclusive table skin |
+| 21   | $100 + “High Roller Streak” title |
+| 30   | $150 + VIP chip bundle + profile badge |
+
+
+### Weekly spin wheel
+| Price  | Probability  |
+| ------ | ------------ |
+| $100   | 40%          |
+| $250   | 30%          |
+| $500   | 20%          |
+| $1000  | 2%           |
+
+### Chip packages
+| Price  | Multiplier | Chips given | Label
+| ------ | ---------- | ----------- | ----- |
+| $0.99  | 1x         | 100 chips   | Starter Pack |
+| $4.99  | 1.5x       | 750 chips   | Value Pack |
+| $9.99  | 2x         | 2000 chips  | Pro Pack |
+| $19.99 | 2.5x       | 5000 chips  | High Roller Pack |
+| $49.99 | 3x         | 15000 chips | VIP Pack |
+| Custom | 2x         | 200 chips per $1 | Flexible Pack |
+
+### Profile card (shareable at /u/nickname)
+- Nickname
+- Win %
+- Net worth
+- Rank (e.g. #218 global)
+- Badge
+- Streak days

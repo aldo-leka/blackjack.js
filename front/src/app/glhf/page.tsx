@@ -205,7 +205,7 @@ export default function Page() {
             <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col items-center gap-2">
                     <h2 className="text-white italic font-semibold">
-                        You {worth && <>({worth} / {cash})</>}
+                        You {worth && <>({worth})</>}
                     </h2>
                     <div className="flex gap-1.5">
                         <div className="flex flex-col gap-2">
@@ -277,13 +277,30 @@ export default function Page() {
                 </div>
 
                 <div className="flex flex-col items-center gap-2">
-                    <div className="bg-[#daa52080] rounded-full size-36 border-4 border-[#DAA520]">
-                        <div className="flex justify-center items-center h-full">
-                            <Chip color="white" amount={betChips[0]} />
-                            <Chip color="red" amount={betChips[1]} />
-                            <Chip color="green" amount={betChips[2]} />
-                            <Chip color="black" amount={betChips[3]} />
-                            <Chip color="blue" amount={betChips[4]} />
+                    <div className="relative size-36">
+                        <svg className="absolute inset-0 -rotate-90" viewBox="0 0 144 144">
+                            <circle
+                                cx="72"
+                                cy="72"
+                                r="70"
+                                fill="none"
+                                stroke="#DAA520"
+                                strokeWidth="4"
+                                strokeDasharray={`${2 * Math.PI * 70}`}
+                                strokeDashoffset={`${2 * Math.PI * 70 * (1 - 0.5)}`}
+                                className="transition-all duration-1000 ease-linear"
+                            />
+                        </svg>
+
+                        {/* Betting circle */}
+                        <div className="bg-[#daa52080] rounded-full size-36 border-4 border-transparent">
+                            <div className="flex justify-center items-center h-full">
+                                <Chip color="white" amount={betChips[0]} />
+                                <Chip color="red" amount={betChips[1]} />
+                                <Chip color="green" amount={betChips[2]} />
+                                <Chip color="black" amount={betChips[3]} />
+                                <Chip color="blue" amount={betChips[4]} />
+                            </div>
                         </div>
                     </div>
                     <div className="flex gap-2 justify-between">
