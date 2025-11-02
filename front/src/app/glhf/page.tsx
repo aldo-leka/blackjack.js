@@ -26,7 +26,7 @@ interface ApiRoom {
     name: string;
     players: ApiPlayer[];
     timeLeft?: number;
-    phase?: "bet" | "";
+    phase?: "bet" | "deal_initial_cards" | "players_play" | "dealer_play" | "payout";
 }
 
 export default function Page() {
@@ -44,30 +44,36 @@ export default function Page() {
 
         socket.emit("join room");
 
-        function joinedRoom(cash: number, countryCode: string, _otherPlayers: ApiPlayer[]) {
-            console.log(`joinedRoom: i joined room with cash ${cash}, other players: ${JSON.stringify(_otherPlayers)}`);
-            setWorth(cash);
-            setOtherPlayers(_otherPlayers.map(p => ({
-                nickname: p.nickname,
-                countryCode: p.countryCode,
-                worth: p.cash!,
-                bet: p.bet,
-                disconnected: false
-            })));
+        function joinedRoom(me: ApiPlayer, room: ApiRoom) {
+            setWorth(me.cash);
+
+            const otherPlayers = room.players
+                .filter(p => p.nickname !== me.nickname)
+                .map(p => ({
+                    nickname: p.nickname,
+                    countryCode: p.countryCode,
+                    worth: p.cash!,
+                    bet: p.bet,
+                    disconnected: false
+                }));
+
+            setOtherPlayers(otherPlayers);
+
+            console.log(`joinedRoom: i joined room with cash ${me.cash}, other players: ${JSON.stringify(otherPlayers)}`);
         }
 
-        function userJoined(nickname: string, countryCode: string, cash?: number, bet?: number) {
-            console.log(`userJoined: ${nickname} joined, countryCode: ${countryCode}, worth: ${worth}, bet: ${bet}`);
+        function userJoined(player: ApiPlayer) {
+            console.log(`userJoined: ${player.nickname} joined, countryCode: ${player.countryCode}, worth: ${player.cash}`);
             setOtherPlayers(prev => {
-                const exists = prev.some(player => player.nickname === nickname);
+                const exists = prev.some(p => p.nickname === player.nickname);
                 if (exists) {
                     return prev;
                 }
                 return [...prev, {
-                    nickname,
-                    countryCode,
-                    worth: cash!,
-                    bet: bet,
+                    nickname: player.nickname,
+                    countryCode: player.countryCode,
+                    worth: player.cash!,
+                    bet: player.bet,
                     disconnected: false
                 }];
             });
@@ -113,17 +119,22 @@ export default function Page() {
             );
         }
 
-        function alreadyInRoom(countryCode: string, cash?: number, bet?: number, _otherPlayers?: ApiPlayer[]) {
-            console.log(`alreadyInRoom: cash: ${cash}, bet: ${bet}, other players: ${JSON.stringify(_otherPlayers)}`);
-            setWorth(cash);
-            setBet(bet);
-            setOtherPlayers(_otherPlayers!.map(p => ({
-                nickname: p.nickname,
-                countryCode: p.countryCode,
-                worth: p.cash!,
-                bet: p.bet,
-                disconnected: false
-            })));
+        function alreadyInRoom(me: ApiPlayer, room: ApiRoom) {
+            const otherPlayers = room.players
+                .filter(p => p.nickname !== me.nickname)
+                .map(p => ({
+                    nickname: p.nickname,
+                    countryCode: p.countryCode,
+                    worth: p.cash!,
+                    bet: p.bet,
+                    disconnected: false
+                }));
+
+            setWorth(me.cash);
+            setBet(me.bet);
+            setOtherPlayers(otherPlayers);
+
+            console.log(`alreadyInRoom: cash: ${me.cash}, bet: ${me.bet}, other players: ${JSON.stringify(otherPlayers)}`);
         }
 
         function timerUpdate(timeLeft: number, totalTime: number) {
@@ -336,7 +347,10 @@ export default function Page() {
                         <h2 className="text-white italic font-semibold">
                             {otherPlayers[0].nickname} (${otherPlayers[0].worth})
                         </h2>
-                        <div className="bg-[#daa52039] rounded-full size-36">
+                        <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-36">
+                            <div className="flex justify-center items-end text-white italic font-semibold pb-1">
+                                {otherPlayers[0].bet ? `$${otherPlayers[0].bet}` : ''}
+                            </div>
                             <div className="flex justify-center items-center h-full">
                                 {(() => {
                                     const playerBetChips = otherPlayers[0].bet
@@ -362,7 +376,10 @@ export default function Page() {
                         <h2 className="text-white italic font-semibold">
                             {otherPlayers[1].nickname} (${otherPlayers[1].worth})
                         </h2>
-                        <div className="bg-[#daa52039] rounded-full size-36">
+                        <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-36">
+                            <div className="flex justify-center items-end text-white italic font-semibold pb-1">
+                                {otherPlayers[1].bet ? `$${otherPlayers[1].bet}` : ''}
+                            </div>
                             <div className="flex justify-center items-center h-full">
                                 {(() => {
                                     const playerBetChips = otherPlayers[1].bet

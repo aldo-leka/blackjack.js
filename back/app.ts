@@ -159,17 +159,17 @@ io.on('connection', async (socket) => {
 
         // user already has a room aka is reconnecting
         if (user.roomName) {
-            const otherPlayers = Array.from(users.values())
-                .filter(u => u.roomName === user.roomName && u.nickname !== nickname)
-                .map(u => ({
-                    nickname: u.nickname,
-                    countryCode: u.countryCode,
-                    cash: u.cash,
-                    bet: u.bet
-                }));
+            // const otherPlayers = Array.from(users.values())
+            //     .filter(u => u.roomName === user.roomName && u.nickname !== nickname)
+            //     .map(u => ({
+            //         nickname: u.nickname,
+            //         countryCode: u.countryCode,
+            //         cash: u.cash,
+            //         bet: u.bet
+            //     }));
 
             socket.join(user.roomName); // sanity check
-            socket.emit("already in room", user.countryCode, user.cash, user.bet, otherPlayers);
+            socket.emit("already in room", getUserMap(user), getRoomMap(user.room!));
             socket.to(user.roomName).emit("user reconnected", nickname);
 
             const room = rooms.get(user.roomName);
@@ -234,24 +234,17 @@ io.on('connection', async (socket) => {
             socket.emit("timer update", rooms.get(roomFoundName)!.timeLeft, TIMER);
         }
 
+        const room = rooms.get(roomFoundName)!;
+
         // update user data with found room
         users.set(nickname, {
             ...user,
-            room: rooms.get(roomFoundName),
+            room: room,
             roomName: roomFoundName
         });
 
-        const otherPlayers = Array.from(users.values())
-            .filter(u => u.roomName === roomFoundName && u.nickname !== nickname)
-            .map(u => ({
-                nickname: u.nickname,
-                countryCode: u.countryCode,
-                cash: u.cash,
-                bet: u.bet
-            }));
-
-        socket.emit("joined room", user.cash, user.countryCode, otherPlayers);
-        socket.to(roomFoundName).emit("user joined", nickname, user.countryCode, user.cash, user.bet);
+        socket.emit("joined room", getUserMap(user), getRoomMap(room));
+        socket.to(roomFoundName).emit("user joined", getUserMap(user));
     });
 
     socket.on("change bet", (chipIndex: number, action: "add" | "remove") => {
@@ -269,6 +262,11 @@ io.on('connection', async (socket) => {
 
         if (!user.roomName) {
             logWarning(`change bet: no room for user '${nickname}'`);
+            return;
+        }
+
+        if (user.room?.phase !== "bet") {
+            logWarning(`change bet: room is not in bet phase`);
             return;
         }
 
@@ -306,6 +304,24 @@ io.on('connection', async (socket) => {
 
 export function getRooms() {
     return rooms;
+}
+
+function getUserMap(user: UserData) {
+    return {
+        nickname: user.nickname,
+        countryCode: user.countryCode,
+        cash: user.cash,
+        bet: user.bet,
+    }
+}
+
+function getRoomMap(room: Room) {
+    return {
+        name: room.name,
+        players: room.players,
+        timeLeft: room.timeLeft,
+        phase: room.phase,
+    };
 }
 
 function getIp(socket: Socket) {

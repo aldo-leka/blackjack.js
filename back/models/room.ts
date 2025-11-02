@@ -5,5 +5,5 @@ export interface Room {
     players: UserData[];
     timer?: NodeJS.Timeout;
     timeLeft?: number;
-    phase?: "bet" | "";
+    phase?: "bet" | "deal_initial_cards" | "players_play" | "dealer_play" | "payout";
 }
