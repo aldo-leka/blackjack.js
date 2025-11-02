@@ -22,11 +22,20 @@ interface ApiPlayer {
     bet?: number;
 }
 
+interface ApiRoom {
+    name: string;
+    players: ApiPlayer[];
+    timeLeft?: number;
+    phase?: "bet" | "";
+}
+
 export default function Page() {
     const { isHandshakeComplete } = useNickname();
     const [worth, setWorth] = useState<number | undefined>(undefined);
     const [bet, setBet] = useState<number | undefined>(undefined);
     const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
+    const [timeLeft, setTimeLeft] = useState<number | undefined>();
+    const [totalTime, setTotalTime] = useState<number | undefined>();
 
     useEffect(() => {
         if (!isHandshakeComplete) {
@@ -117,6 +126,11 @@ export default function Page() {
             })));
         }
 
+        function timerUpdate(timeLeft: number, totalTime: number) {
+            setTimeLeft(timeLeft);
+            setTotalTime(totalTime);
+        }
+
         socket.on("joined room", joinedRoom);
         socket.on("user joined", userJoined);
         socket.on("user reconnected", userReconnected);
@@ -124,6 +138,7 @@ export default function Page() {
         socket.on("user removed", userRemoved);
         socket.on("user change bet", userChangeBet);
         socket.on("already in room", alreadyInRoom);
+        socket.on("timer update", timerUpdate);
 
         return () => {
             socket.off("joined room", joinedRoom);
@@ -133,6 +148,7 @@ export default function Page() {
             socket.off("user removed", userRemoved);
             socket.off("user change bet", userChangeBet);
             socket.off("already in room", alreadyInRoom);
+            socket.off("timer update", timerUpdate);
         }
     }, [isHandshakeComplete]);
 
@@ -274,19 +290,21 @@ export default function Page() {
 
                 <div className="flex flex-col items-center gap-2">
                     <div className="relative size-36">
-                        <svg className="absolute inset-0 -rotate-90" viewBox="0 0 144 144">
-                            <circle
-                                cx="72"
-                                cy="72"
-                                r="70"
-                                fill="none"
-                                stroke="#DAA520"
-                                strokeWidth="4"
-                                strokeDasharray={`${2 * Math.PI * 70}`}
-                                strokeDashoffset={`${2 * Math.PI * 70 * (1 - 0.5)}`}
-                                className="transition-all duration-1000 ease-linear"
-                            />
-                        </svg>
+                        {totalTime && timeLeft ? (
+                            <svg className="absolute inset-0 -rotate-90" viewBox="0 0 144 144">
+                                <circle
+                                    cx="72"
+                                    cy="72"
+                                    r="70"
+                                    fill="none"
+                                    stroke="#DAA520"
+                                    strokeWidth="4"
+                                    strokeDasharray={`${2 * Math.PI * 70}`}
+                                    strokeDashoffset={`${2 * Math.PI * 70 * (1 - (totalTime - timeLeft) / totalTime)}`}
+                                    className="transition-all duration-1000 ease-linear"
+                                />
+                            </svg>
+                        ) : ''}
 
                         <div className="grid grid-rows-3 bg-[#daa52080] rounded-full size-36 border-4 border-transparent">
                             <div className="flex justify-center items-end text-white italic font-semibold pb-1">

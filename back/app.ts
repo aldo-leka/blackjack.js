@@ -13,8 +13,9 @@ import { auth } from "./auth";
 import { logInfo, logWarning } from './log';
 import { IpApiResponse } from './models/ip-api';
 import { UserData } from './models/user-data';
-import { CHIPS, DAILY_REFILL_VALUE, MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID } from './util';
+import { CHIPS, DAILY_REFILL_VALUE, MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID, ROOM_NAME_FORMAT, TIMER } from './util';
 import prisma from './db';
+import { Room } from './models/room';
 
 const app = express();
 
@@ -34,7 +35,7 @@ app.use(express.json());
 app.use('/api/items', itemRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/cron', cronRoutes);
-app.use('/api/game', gameRoutes);
+app.use('/api', gameRoutes);
 
 // Global error handler (should be after routes)
 app.use(errorHandler);
@@ -51,6 +52,7 @@ const io = new Server(server, {
 let users = new Map<string, UserData>();
 let currentRoomId = 0;
 let disconnects = new Map<string, NodeJS.Timeout>();
+let rooms = new Map<string, Room>();
 
 io.on('connection', async (socket) => {
     socket.on("register nickname", async (nickname) => {
@@ -113,19 +115,26 @@ io.on('connection', async (socket) => {
             return;
         }
 
-        if (user.room) {
-            socket.to(user.room).emit("user disconnected", nickname);
+        if (user.roomName) {
+            socket.to(user.roomName).emit("user disconnected", nickname);
         }
 
         const timeoutId = setTimeout(() => {
             const countryCode = user.countryCode;
-            const room = user.room;
+            const roomName = user.roomName;
 
             users.delete(nickname);
             disconnects.delete(nickname);
 
-            if (room) {
-                io.to(room).emit("user removed", nickname);
+            if (roomName) {
+                const room = rooms.get(roomName)!;
+                room.players = room.players.filter(player => player.nickname !== nickname);
+                if (room.players.length === 0) {
+                    clearInterval(room.timer);
+                    rooms.delete(roomName);
+                }
+
+                io.to(roomName).emit("user removed", nickname);
             }
 
             logInfo(`${nickname} from ${countryCode} (ip: ${socket.handshake.address}) removed after timeout`);
@@ -149,9 +158,9 @@ io.on('connection', async (socket) => {
         }
 
         // user already has a room aka is reconnecting
-        if (user.room) {
+        if (user.roomName) {
             const otherPlayers = Array.from(users.values())
-                .filter(u => u.room === user.room && u.nickname !== nickname)
+                .filter(u => u.roomName === user.roomName && u.nickname !== nickname)
                 .map(u => ({
                     nickname: u.nickname,
                     countryCode: u.countryCode,
@@ -159,19 +168,24 @@ io.on('connection', async (socket) => {
                     bet: u.bet
                 }));
 
-            socket.join(user.room); // sanity check
+            socket.join(user.roomName); // sanity check
             socket.emit("already in room", user.countryCode, user.cash, user.bet, otherPlayers);
-            socket.to(user.room).emit("user reconnected", nickname);
+            socket.to(user.roomName).emit("user reconnected", nickname);
+
+            const room = rooms.get(user.roomName);
+            if (room!.phase === "bet") {
+                socket.emit("timer update", room!.timeLeft, TIMER);
+            }
+            
             return;
         }
 
-        const rooms = getRooms();
         let roomFound = false;
         let roomFoundName = "";
-        rooms.forEach((roomUsers, roomName) => {
-            if (!roomFound && roomUsers.length < MAX_PLAYERS_PER_ROOM) {
+        rooms.forEach(room => {
+            if (!roomFound && room.players.length < MAX_PLAYERS_PER_ROOM) {
                 roomFound = true;
-                roomFoundName = roomName;
+                roomFoundName = room.name;
             }
         });
 
@@ -181,16 +195,54 @@ io.on('connection', async (socket) => {
             }
 
             currentRoomId += 1;
-            roomFoundName = `ROOM_${currentRoomId}`;
+            roomFoundName = ROOM_NAME_FORMAT.replace("{id}", currentRoomId.toString());
         }
-
-        // update user data with found room
-        users.set(nickname, { ...user, room: roomFoundName });
 
         socket.join(roomFoundName);
 
+        if (!roomFound) {
+            const timer = setInterval(() => {
+                const room = rooms.get(roomFoundName);
+                if (room) {
+                    room.timeLeft!--;
+
+                    logInfo(room.timeLeft);
+
+                    io.to(roomFoundName).emit("timer update", room.timeLeft, TIMER);
+
+                    if (room.timeLeft! <= 0) {
+                        room.timeLeft = 0;
+                        clearInterval(timer);
+                    }
+                }
+            }, 1000);
+
+            rooms.set(roomFoundName, {
+                name: roomFoundName,
+                players: [user],
+                timer,
+                timeLeft: TIMER,
+                phase: "bet"
+            });
+
+            socket.emit("timer update", TIMER, TIMER);
+        }
+        else {
+            const room = rooms.get(roomFoundName)!;
+            room.players.push(user);
+
+            socket.emit("timer update", rooms.get(roomFoundName)!.timeLeft, TIMER);
+        }
+
+        // update user data with found room
+        users.set(nickname, {
+            ...user,
+            room: rooms.get(roomFoundName),
+            roomName: roomFoundName
+        });
+
         const otherPlayers = Array.from(users.values())
-            .filter(u => u.room === roomFoundName && u.nickname !== nickname)
+            .filter(u => u.roomName === roomFoundName && u.nickname !== nickname)
             .map(u => ({
                 nickname: u.nickname,
                 countryCode: u.countryCode,
@@ -215,12 +267,12 @@ io.on('connection', async (socket) => {
             return;
         }
 
-        if (!user.room) {
+        if (!user.roomName) {
             logWarning(`change bet: no room for user '${nickname}'`);
             return;
         }
 
-        if (chipIndex > CHIPS.length) {
+        if (chipIndex >= CHIPS.length) {
             logWarning(`change bet: invalid chip index from user ${nickname}`);
             return;
         }
@@ -231,7 +283,8 @@ io.on('connection', async (socket) => {
 
         let chipValue = CHIPS[chipIndex];
         if (action === "add") {
-            if (user.cash! < chipValue) {
+            const availableCash = user.cash! - (user.bet ?? 0);
+            if (availableCash < chipValue) {
                 logWarning(`add bet: invalid bet for user ${nickname} (chipValue: ${chipValue}, cash: ${user.cash})`);
                 return;
             }
@@ -247,24 +300,11 @@ io.on('connection', async (socket) => {
             user.bet = user.bet! - chipValue;
         }
 
-        socket.to(user.room).emit("user change bet", nickname, user.bet);
+        socket.to(user.roomName).emit("user change bet", nickname, user.bet);
     });
 });
 
 export function getRooms() {
-    let rooms = new Map<string, UserData[]>();
-    for (let [, user] of users) {
-        if (user.room) {
-            const roomUsers = rooms.get(user.room);
-            if (roomUsers) {
-                rooms.set(user.room, [...roomUsers, user]);
-            }
-            else {
-                rooms.set(user.room, [user]);
-            }
-        }
-    }
-
     return rooms;
 }
 
