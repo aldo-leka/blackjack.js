@@ -206,8 +206,8 @@ export default function Page() {
 
     return (
         <div className="flex flex-col items-center gap-4 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
-            <div className="w-full max-w-7xl px-12 flex justify-between items-start">
-                <div className="flex-1"></div>
+            <div className="w-full max-w-7xl px-12 grid grid-cols-3">
+                <div></div>
                 <div className="relative bg-[#daa52080] rounded-full size-48 -mt-24 flex items-center justify-center">
                     <div className="absolute text-white font-semibold italic mt-8">
                         Dealer
@@ -221,14 +221,12 @@ export default function Page() {
                         </div>
                     </div>
                 </div>
-                <div className="flex-1 flex justify-end">
-                    <div className="text-[#DAA520] text-center cursor-pointer">
-                        <div>
-                            X
-                        </div>
-                        <div>
-                            Quit
-                        </div>
+                <div className="text-[#DAA520] text-center cursor-pointer ml-8">
+                    <div>
+                        X
+                    </div>
+                    <div>
+                        Quit
                     </div>
                 </div>
             </div>
