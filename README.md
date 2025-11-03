@@ -44,7 +44,7 @@ For clarification (from Claude):
 ### drop the development db
 ```prisma migrate reset```
 
-## Game features
+## TODO: Game economy
 ## Streak
 
 ### Cycle 1: Days 1-7
