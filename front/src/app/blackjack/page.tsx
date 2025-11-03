@@ -85,6 +85,7 @@ export default function Page() {
                 .map(p => getPlayerMap(p));
 
             setOtherPlayers(otherPlayers);
+            setDealerHand(room.dealerHand?.map(c => getCard(c)) ?? []);
 
             console.log(`joinedRoom: i joined room with cash ${me.cash}, other players: ${JSON.stringify(otherPlayers)}`);
         }
@@ -319,36 +320,7 @@ export default function Page() {
     return (
         <div className="grid grid-rows-4 grid-cols-2 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
             <div id="dealer-zone" className="col-span-2">
-                <div className="flex flex-col items-center">
-                    <div className="w-full max-w-7xl px-12 grid grid-cols-3">
-                        <div></div>
-                        <div className="relative bg-[#daa52080] rounded-full size-48 -mt-24 flex items-center justify-center">
-                            <div className="absolute text-white font-semibold italic mt-8">
-                                Dealer
-                            </div>
-                            <div className="relative h-24 w-32 -bottom-25">
-                                {dealerHand.map((card, index) =>
-                                    <div key={`dealer-${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
-                                        <Image src={card.imageUrl} alt={card.alt} width={60} height={87} draggable={false} />
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        <div className="text-[#DAA520] text-center cursor-pointer ml-8">
-                            <div>
-                                X
-                            </div>
-                            <div>
-                                Quit
-                            </div>
-                        </div>
-                    </div>
-                    {phase === "bet" &&
-                        <div className="text-white italic font-semibold mt-12">
-                            Place your bets
-                        </div>
-                    }
-                </div>
+                {getDealerComponent()}
             </div>
 
             <div id="player-zone" className="col-span-2 grid grid-cols-2 gap-8 px-8">
@@ -360,7 +332,7 @@ export default function Page() {
                         <div className="relative h-24 w-32">
                             {hand.map((card, index) =>
                                 <div key={`player-${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
-                                    <Image src={card.imageUrl} alt={card.alt} width={60} height={87} draggable={false} />
+                                    <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
                                 </div>
                             )}
                         </div>
@@ -520,62 +492,11 @@ export default function Page() {
 
             <div id="other-players" className="col-span-2 grid grid-cols-2 gap-8 px-8">
                 <div className="justify-self-end">
-                    {otherPlayers.length > 0 &&
-                        <div className={`${otherPlayers[0].disconnected ? "opacity-50" : ""} flex flex-col items-center gap-2`}>
-                            <h2 className="text-white italic font-semibold">
-                                {otherPlayers[0].nickname} (${otherPlayers[0].worth})
-                            </h2>
-                            {phase !== "bet" &&
-                                <div className="flex flex-col items-start">
-                                    <div className="text-white italic">
-                                        {otherPlayers[0].bet ? `$${otherPlayers[0].bet}` : ''}
-                                    </div>
-                                    <div className="relative h-24 w-32">
-                                        {otherPlayers[0].hand && otherPlayers[0].hand.map((card, index) =>
-                                            <div key={`other-player-1-${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
-                                                <Image src={card.imageUrl} alt={card.alt} width={60} height={87} draggable={false} />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="text-white italic font-semibold">
-                                        22 <span className="text-[#DAA520] not-italic font-light">
-                                            Bust!
-                                        </span>
-                                    </div>
-                                </div>
-                            }
-                            {phase === "bet" &&
-                                <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-36">
-                                    <div className="flex justify-center items-end text-white italic font-semibold pb-1">
-                                        {otherPlayers[0].bet ? `$${otherPlayers[0].bet}` : ''}
-                                    </div>
-                                    <div className="flex justify-center items-center h-full">
-                                        {(() => {
-                                            const playerBetChips = otherPlayers[0].bet
-                                                ? convertToChips(otherPlayers[0].bet)
-                                                : [0, 0, 0, 0, 0];
-                                            return (
-                                                <>
-                                                    <Chip color="white" amount={playerBetChips[0]} />
-                                                    <Chip color="red" amount={playerBetChips[1]} />
-                                                    <Chip color="green" amount={playerBetChips[2]} />
-                                                    <Chip color="black" amount={playerBetChips[3]} />
-                                                    <Chip color="blue" amount={playerBetChips[4]} />
-                                                </>
-                                            );
-                                        })()}
-                                    </div>
-                                    <div className="flex justify-center text-white">
-                                        {otherPlayers[0].check ? <Check size={16} /> : ""}
-                                    </div>
-                                </div>
-                            }
-                        </div>
-                    }
+                    {getOtherPlayerComponent(0)}
                 </div>
 
                 <div className="justify-self-start">
-                    {/* copy pasta */}
+                    {getOtherPlayerComponent(1)}
                 </div>
             </div>
 
@@ -583,5 +504,104 @@ export default function Page() {
 
             </div>
         </div>
-    )
+    );
+
+    function getDealerComponent() {
+        return <div className="flex flex-col items-center">
+            <div className="flex w-full justify-center">
+                <div className="w-1/5"></div>
+                <div className="flex flex-col items-center justify-center size-48 -mt-24 bg-[#daa52080] rounded-full">
+                    <div className="mt-24 text-white font-semibold italic">
+                        Dealer
+                    </div>
+                    <div className="relative h-24 w-32 mt-6"> 
+                        {dealerHand.map((card, index) =>
+                            <div key={`dealer-${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
+                            </div>
+                        )}
+                    </div>
+                    <div className="text-white italic font-semibold">
+                        21 <span className="text-[#DAA520] not-italic font-light">
+                            Blackjack!
+                        </span>
+                    </div>
+                </div>
+
+                <div className="w-1/5 text-[#DAA520] text-center cursor-pointer">
+                    <div>
+                        X
+                    </div>
+                    <div>
+                        Quit
+                    </div>
+                </div>
+            </div>
+            {/* {phase === "bet" && */}
+
+            <div className="text-white italic font-semibold">
+                Place your bets
+            </div>
+            {/* } */}
+        </div>
+    }
+
+    function getOtherPlayerComponent(playerIndex: number) {
+        if (otherPlayers.length > playerIndex) {
+            const otherPlayer = otherPlayers[playerIndex];
+
+            return <div className={`${otherPlayer.disconnected ? "opacity-50" : ""} flex flex-col items-center gap-2`}>
+                <h2 className="text-white italic font-semibold">
+                    {otherPlayer.nickname} (${otherPlayer.worth})
+                </h2>
+                {phase !== "bet" &&
+                    <div className="flex flex-col items-start">
+                        <div className="text-white italic">
+                            {otherPlayer.bet ? `$${otherPlayer.bet}` : ''}
+                        </div>
+                        <div className="relative h-24 w-32">
+                            {otherPlayer.hand && otherPlayer.hand.map((card, index) =>
+                                <div key={`other-player-1-${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                    <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
+                                </div>
+                            )}
+                        </div>
+                        <div className="text-white italic font-semibold">
+                            22 <span className="text-[#DAA520] not-italic font-light">
+                                Bust!
+                            </span>
+                        </div>
+                    </div>
+                }
+                {phase === "bet" &&
+                    <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-36">
+                        <div className="flex justify-center items-end text-white italic font-semibold pb-1">
+                            {otherPlayer.bet ? `$${otherPlayer.bet}` : ''}
+                        </div>
+                        <div className="flex justify-center items-center h-full">
+                            {(() => {
+                                const playerBetChips = otherPlayer.bet
+                                    ? convertToChips(otherPlayer.bet)
+                                    : [0, 0, 0, 0, 0];
+                                return (
+                                    <>
+                                        <Chip color="white" amount={playerBetChips[0]} />
+                                        <Chip color="red" amount={playerBetChips[1]} />
+                                        <Chip color="green" amount={playerBetChips[2]} />
+                                        <Chip color="black" amount={playerBetChips[3]} />
+                                        <Chip color="blue" amount={playerBetChips[4]} />
+                                    </>
+                                );
+                            })()}
+                        </div>
+                        <div className="flex justify-center text-white">
+                            {otherPlayer.check ? <Check size={16} /> : ""}
+                        </div>
+                    </div>
+                }
+            </div>;
+        }
+
+        return <></>;
+    }
 }

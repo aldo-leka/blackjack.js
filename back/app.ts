@@ -392,7 +392,7 @@ async function dealInitialCards(room: Room) {
     room.dealerHand = [card];
     io.to(room.name).emit("deal dealer facedown card");
 
-    logInfo(`dealInitialCards: dealt facedown ${getLoggingCard(card)} to dealer`);
+    logInfo(`dealInitialCards: dealt ${getLoggingCard(card)} facedown to dealer`);
 
     for (const player of room.players) {
         if (player.bet && player.bet > 0) {
@@ -484,17 +484,6 @@ function shouldReshuffle(cardsDealt: number): boolean {
     return cardsDealt >= dealCardsBeforeShuffle;
 }
 
-export function getLoggingCard(card: Card): string {
-    const SUIT_EMOJI: Record<string, string> = {
-        spades: "♠",
-        hearts: "♥",
-        clubs: "♣",
-        diamonds: "♦",
-    };
-
-    return `${card.rank}${SUIT_EMOJI[card.suit]}`;
-}
-
 function getUserMap(user: UserData) {
     return {
         nickname: user.nickname,
@@ -532,6 +521,17 @@ function getLoggingRoom(room: Room) {
         phase: room.phase,
         dealerHand: room.dealerHand,
     };
+}
+
+export function getLoggingCard(card: Card): string {
+    const SUIT_EMOJI: Record<string, string> = {
+        spades: "♠",
+        hearts: "♥",
+        clubs: "♣",
+        diamonds: "♦",
+    };
+
+    return `${card.rank}${SUIT_EMOJI[card.suit]}`;
 }
 
 function getIp(socket: Socket) {
