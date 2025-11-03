@@ -95,7 +95,8 @@ io.on('connection', async (socket) => {
             existing.socketId = socket.id;
             existing.countryCode = countryCode;
             existing.cash = tempUser.cash;
-        } else {
+        }
+        else {
             users.set(nickname, {
                 nickname,
                 socketId: socket.id,
@@ -172,9 +173,6 @@ io.on('connection', async (socket) => {
             switch (room!.phase) {
                 case "bet":
                     socket.emit("timer update", room!.timeLeft, TIMER);
-                    break;
-                case "deal_initial_cards":
-
                     break;
             }
 
@@ -362,9 +360,14 @@ async function dealInitialCards(room: Room) {
     }
 
     room.phase = "deal_initial_cards";
-    room.players.forEach(async player => {
+    io.to(room.name).emit("deal initial cards");
+
+    let anyPlayerBet = false;
+    for (const player of room.players) {
         if (player.bet && player.bet > 0) {
-            await new Promise(resolve => setTimeout(resolve, DEAL_TIME));
+            anyPlayerBet = true;
+
+            await wait(DEAL_TIME);
 
             if (room.shoe!.length === 0) {
                 logError("dealInitialCards: shoe is empty!", getLoggingRoom(room));
@@ -372,12 +375,77 @@ async function dealInitialCards(room: Room) {
             }
 
             const card = dealCard(room.shoe!);
-            player.hand?.push(card);
-            io.to(room.name).emit("deal", player.nickname, card);
+            player.hand = [card];
+            io.to(room.name).emit("deal player card", player.nickname, getCardMap(card));
 
-            logInfo(`dealInitialCards: dealt ${cardToString(card)} to ${player.nickname}`);
+            logInfo(`dealInitialCards: dealt ${getLoggingCard(card)} to ${player.nickname}`);
         }
+    };
+
+    if (!anyPlayerBet) {
+        restartGame(room);
+        return;
+    }
+
+    await wait(DEAL_TIME);
+    let card = dealCard(room.shoe!);
+    room.dealerHand = [card];
+    io.to(room.name).emit("deal dealer facedown card");
+
+    logInfo(`dealInitialCards: dealt facedown ${getLoggingCard(card)} to dealer`);
+
+    for (const player of room.players) {
+        if (player.bet && player.bet > 0) {
+            await wait(DEAL_TIME);
+
+            const card = dealCard(room.shoe!);
+            player.hand!.push(card);
+            io.to(room.name).emit("deal player card", player.nickname, getCardMap(card));
+
+            logInfo(`dealInitialCards: dealt ${getLoggingCard(card)} to ${player.nickname}`);
+        }
+    };
+
+    await wait(DEAL_TIME);
+    card = dealCard(room.shoe!);
+    room.dealerHand.push(card);
+    io.to(room.name).emit("deal dealer card", card);
+    logInfo(`dealInitialCards: dealt ${getLoggingCard(card)} to dealer`);
+}
+
+async function wait(seconds: number) {
+    await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+}
+
+function restartGame(room: Room) {
+    room.players.forEach(player => {
+        player.bet = undefined;
+        player.check = undefined;
+        player.hand = undefined;
     });
+
+    room.dealerHand = undefined;
+    clearInterval(room.timer);
+    room.timeLeft = TIMER;
+    room.phase = "bet";
+
+    io.to(room.name).emit("restart", getRoomMap(room));
+
+    const timer = setInterval(() => {
+        room.timeLeft!--;
+
+        logInfo(room.timeLeft);
+
+        io.to(room.name).emit("timer update", room.timeLeft, TIMER);
+
+        if (room.timeLeft! <= 0) {
+            room.timeLeft = 0;
+            clearInterval(timer);
+            dealInitialCards(room);
+        }
+    }, 1000);
+
+    io.to(room.name).emit("timer update", TIMER, TIMER);
 }
 
 function dealCard(shoe: Card[]) {
@@ -393,7 +461,7 @@ function shouldReshuffle(cardsDealt: number): boolean {
     return cardsDealt >= dealCardsBeforeShuffle;
 }
 
-function cardToString(card: Card): string {
+function getLoggingCard(card: Card): string {
     const SUIT_EMOJI: Record<string, string> = {
         spades: "♠",
         hearts: "♥",
@@ -404,7 +472,6 @@ function cardToString(card: Card): string {
     return `${card.rank}${SUIT_EMOJI[card.suit]}`;
 }
 
-
 function getUserMap(user: UserData) {
     return {
         nickname: user.nickname,
@@ -412,7 +479,7 @@ function getUserMap(user: UserData) {
         cash: user.cash,
         bet: user.bet,
         check: user.check,
-
+        hand: user.hand?.map(c => getCardMap(c)),
     }
 }
 
@@ -423,6 +490,13 @@ function getRoomMap(room: Room) {
         timeLeft: room.timeLeft,
         phase: room.phase,
     };
+}
+
+function getCardMap(card: Card) {
+    return {
+        rank: card.rank,
+        suit: card.suit,
+    }
 }
 
 function getLoggingRoom(room: Room) {

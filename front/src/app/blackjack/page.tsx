@@ -5,13 +5,8 @@ import { socket } from "@/lib/socket";
 import { Check, CirclePlus, Hand, Repeat, Split } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
-import { CHIPS } from "@/lib/util";
+import { Card, CHIPS, DECK } from "@/lib/util";
 import Image from "next/image";
-
-interface Card {
-    rank: string;
-    suit: string;
-}
 
 interface Player {
     nickname: string;
@@ -29,7 +24,7 @@ interface ApiPlayer {
     cash?: number;
     bet?: number;
     check?: boolean;
-    hand?: Card[]
+    hand?: ApiCard[]
 }
 
 interface ApiRoom {
@@ -39,31 +34,38 @@ interface ApiRoom {
     phase?: "bet" | "deal_initial_cards" | "players_play" | "dealer_play" | "payout";
 }
 
+interface ApiCard {
+    rank: string;
+    suit: string;
+}
+
 export default function Page() {
-    const { isHandshakeComplete } = useNickname();
+    const { nickname, isHandshakeComplete } = useNickname();
     const [worth, setWorth] = useState<number | undefined>(undefined);
     const [bet, setBet] = useState<number | undefined>(undefined);
-    // const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
-    const [otherPlayers, setOtherPlayers] = useState<Player[]>([
-        {
-            nickname: "FartyPlayer",
-            countryCode: "somewhere",
-            worth: 120,
-            bet: 10,
-            check: true,
-            disconnected: false,
-        },
-        {
-            nickname: "Partypooper",
-            countryCode: "somewhere",
-            worth: 100,
-            bet: 80,
-            disconnected: true,
-        }
-    ]);
+    const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
+    // const [otherPlayers, setOtherPlayers] = useState<Player[]>([
+    //     {
+    //         nickname: "FartyPlayer",
+    //         countryCode: "somewhere",
+    //         worth: 120,
+    //         bet: 10,
+    //         check: true,
+    //         disconnected: false,
+    //     },
+    //     {
+    //         nickname: "Partypooper",
+    //         countryCode: "somewhere",
+    //         worth: 100,
+    //         bet: 80,
+    //         disconnected: true,
+    //     }
+    // ]);
     const [timeLeft, setTimeLeft] = useState<number | undefined>();
     const [totalTime, setTotalTime] = useState<number | undefined>();
     const [phase, setPhase] = useState<"bet" | "deal_initial_cards" | "players_play" | "dealer_play" | "payout">("deal_initial_cards");
+    const [hand, setHand] = useState<Card[]>([]);
+    const [dealerHand, setDealerHand] = useState<Card[]>([]);
 
     useEffect(() => {
         if (!isHandshakeComplete) {
@@ -74,16 +76,11 @@ export default function Page() {
 
         function joinedRoom(me: ApiPlayer, room: ApiRoom) {
             setWorth(me.cash);
+            setPhase(room.phase!);
 
             const otherPlayers = room.players
                 .filter(p => p.nickname !== me.nickname)
-                .map(p => ({
-                    nickname: p.nickname,
-                    countryCode: p.countryCode,
-                    worth: p.cash!,
-                    bet: p.bet,
-                    disconnected: false
-                }));
+                .map(p => getPlayerMap(p));
 
             setOtherPlayers(otherPlayers);
 
@@ -107,40 +104,40 @@ export default function Page() {
             });
         }
 
-        function userReconnected(nickname: string) {
-            console.log(`userReconnected: ${nickname} reconnected`);
+        function userReconnected(username: string) {
+            console.log(`userReconnected: ${username} reconnected`);
             setOtherPlayers(prev =>
                 prev.map(player =>
-                    player.nickname === nickname
+                    player.nickname === username
                         ? { ...player, disconnected: false }
                         : player
                 )
             );
         }
 
-        function userDisconnected(nickname: string) {
-            console.log(`userDisconnected: ${nickname} disconnected`);
+        function userDisconnected(username: string) {
+            console.log(`userDisconnected: ${username} disconnected`);
             setOtherPlayers(prev =>
                 prev.map(player =>
-                    player.nickname === nickname
+                    player.nickname === username
                         ? { ...player, disconnected: true }
                         : player
                 )
             );
         }
 
-        function userRemoved(nickname: string) {
-            console.log(`userRemoved: ${nickname} removed`);
+        function userRemoved(username: string) {
+            console.log(`userRemoved: ${username} removed`);
             setOtherPlayers(prev =>
-                prev.filter(player => player.nickname !== nickname)
+                prev.filter(player => player.nickname !== username)
             );
         }
 
-        function userChangeBet(nickname: string, bet: number) {
-            console.log(`userChangeBet: user: ${nickname}, bet: ${bet}`);
+        function userChangeBet(username: string, bet: number) {
+            console.log(`userChangeBet: user: ${username}, bet: ${bet}`);
             setOtherPlayers(prev =>
                 prev.map(player =>
-                    player.nickname === nickname
+                    player.nickname === username
                         ? { ...player, bet }
                         : player
                 )
@@ -150,17 +147,13 @@ export default function Page() {
         function alreadyInRoom(me: ApiPlayer, room: ApiRoom) {
             const otherPlayers = room.players
                 .filter(p => p.nickname !== me.nickname)
-                .map(p => ({
-                    nickname: p.nickname,
-                    countryCode: p.countryCode,
-                    worth: p.cash!,
-                    bet: p.bet,
-                    disconnected: false
-                }));
+                .map(p => getPlayerMap(p));
 
             setWorth(me.cash);
             setBet(me.bet);
-            // setOtherPlayers(otherPlayers);
+            setOtherPlayers(otherPlayers);
+            setPhase(room.phase!);
+            setHand(me.hand?.map(c => getCard(c)) ?? []);
 
             console.log(`alreadyInRoom: cash: ${me.cash}, bet: ${me.bet}, other players: ${JSON.stringify(otherPlayers)}`);
         }
@@ -168,6 +161,80 @@ export default function Page() {
         function timerUpdate(timeLeft: number, totalTime: number) {
             setTimeLeft(timeLeft);
             setTotalTime(totalTime);
+        }
+
+        function dealInitialCards() {
+            setPhase("deal_initial_cards");
+        }
+
+        function dealPlayerCard(username: string, card: ApiCard) {
+            console.log(`dealPlayerCard: for ${username}, card: ${card}`);
+
+            if (username === nickname) {
+                setHand(prev => [
+                    ...prev,
+                    getCard(card)
+                ]);
+
+                return;
+            }
+
+            setOtherPlayers(prev =>
+                prev.map(player =>
+                    player.nickname === username
+                        ? {
+                            ...player,
+                            hand: [
+                                ...(player.hand || []),
+                                getCard(card)
+                            ]
+                        }
+                        : player
+                )
+            );
+        }
+
+        function dealDealerFacedownCard() {
+            setDealerHand([{
+                rank: "facedown",
+                suit: "card",
+                imageUrl: "/images/card back red.png",
+                alt: "Facedown playing card",
+            }]);
+        }
+
+        function dealDealerCard(card: ApiCard) {
+            setDealerHand(prev => [
+                ...prev,
+                getCard(card)
+            ]);
+        }
+
+        function restart(room: ApiRoom) {
+            console.log(`no bets, restarting game, room: ${JSON.stringify(room)}`);
+            setPhase(room.phase!);
+
+            const otherPlayers = room.players
+                .filter(p => p.nickname !== nickname)
+                .map(p => getPlayerMap(p));
+
+            setOtherPlayers(otherPlayers);
+        }
+
+        function getPlayerMap(player: ApiPlayer) {
+            return {
+                nickname: player.nickname,
+                countryCode: player.countryCode,
+                worth: player.cash!,
+                bet: player.bet,
+                check: player.check,
+                hand: player.hand?.map(c => getCard(c)),
+                disconnected: false
+            };
+        }
+
+        function getCard(card: ApiCard) {
+            return DECK.find(c => c.rank === card.rank && c.suit === card.suit)!;
         }
 
         socket.on("joined room", joinedRoom);
@@ -178,6 +245,11 @@ export default function Page() {
         socket.on("user change bet", userChangeBet);
         socket.on("already in room", alreadyInRoom);
         socket.on("timer update", timerUpdate);
+        socket.on("deal initial cards", dealInitialCards);
+        socket.on("deal player card", dealPlayerCard);
+        socket.on("deal dealer facedown card", dealDealerFacedownCard);
+        socket.on("deal dealer card", dealDealerCard);
+        socket.on("restart", restart);
 
         return () => {
             socket.off("joined room", joinedRoom);
@@ -188,6 +260,11 @@ export default function Page() {
             socket.off("user change bet", userChangeBet);
             socket.off("already in room", alreadyInRoom);
             socket.off("timer update", timerUpdate);
+            socket.off("deal initial cards", dealInitialCards);
+            socket.off("deal card", dealPlayerCard);
+            socket.off("deal dealer facedown card", dealDealerFacedownCard);
+            socket.off("deal dealer card", dealDealerCard);
+            socket.off("restart", restart);
         }
     }, [isHandshakeComplete]);
 
@@ -241,12 +318,11 @@ export default function Page() {
                                 Dealer
                             </div>
                             <div className="relative h-24 w-32 -bottom-25">
-                                <div className="absolute">
-                                    <Image src="/images/card back red.png" alt="" width={60} height={87} draggable={false} />
-                                </div>
-                                <div className="absolute left-4">
-                                    <Image src="/images/2_of_clubs.png" alt="" width={60} height={87} draggable={false} />
-                                </div>
+                                {dealerHand.map((card, index) =>
+                                    <div key={`${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                        <Image src={card.imageUrl} alt={card.alt} width={60} height={87} draggable={false} />
+                                    </div>
+                                )}
                             </div>
                         </div>
                         <div className="text-[#DAA520] text-center cursor-pointer ml-8">
@@ -258,8 +334,7 @@ export default function Page() {
                             </div>
                         </div>
                     </div>
-                    {
-                        phase === "bet" &&
+                    {phase === "bet" &&
                         <div className="text-white italic font-semibold mt-12">
                             Place your bets
                         </div>
@@ -274,12 +349,11 @@ export default function Page() {
                     </h2>
                     {phase !== "bet" && <div>
                         <div className="relative h-24 w-32">
-                            <div className="absolute">
-                                <Image src="/images/4_of_diamonds.png" alt="" width={60} height={87} draggable={false} />
-                            </div>
-                            <div className="absolute left-4">
-                                <Image src="/images/2_of_clubs.png" alt="" width={60} height={87} draggable={false} />
-                            </div>
+                            {hand.map((card, index) =>
+                                <div key={`${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                    <Image src={card.imageUrl} alt={card.alt} width={60} height={87} draggable={false} />
+                                </div>
+                            )}
                         </div>
                         <div className="text-white italic font-semibold">
                             21 <span className="text-[#DAA520] not-italic font-light">
@@ -368,7 +442,7 @@ export default function Page() {
                                     stroke="#DAA520"
                                     strokeWidth="4"
                                     strokeDasharray={`${2 * Math.PI * 70}`}
-                                    strokeDashoffset={`${2 * Math.PI * 70 * (1 - (totalTime - timeLeft) / totalTime)}`}
+                                    strokeDashoffset={`${2 * Math.PI * 70 * (timeLeft / totalTime)}`}
                                     className="transition-all duration-1000 ease-linear"
                                 />
                             </svg>
@@ -420,8 +494,12 @@ export default function Page() {
                                     2X
                                 </button>
                                 <button
-                                    onClick={() => socket.emit("check")}
-                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
+                                    onClick={() => {
+                                        if (bet && bet > 0) {
+                                            socket.emit("check");
+                                        }
+                                    }}
+                                    className={`${!bet || bet === 0 ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                 >
                                     <Check size={16} />
                                 </button>
@@ -440,7 +518,7 @@ export default function Page() {
                             </h2>
                             {phase !== "bet" &&
                                 <div className="flex flex-col items-start">
-                                    <div className="text-white italic font-semibold">
+                                    <div className="text-white italic">
                                         {otherPlayers[0].bet ? `$${otherPlayers[0].bet}` : ''}
                                     </div>
                                     <div className="relative h-24 w-32">
