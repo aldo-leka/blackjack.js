@@ -416,7 +416,7 @@ async function dealInitialCards(room: Room) {
 }
 
 async function startPlayerTurns(room: Room) {
-    room.currentPlayer = 0;
+    room.currentPlayerIndex = 0;
     io.to(room.name).emit("player turn", room.players[0].nickname);
 
     room.timeLeft = TIMER;
@@ -512,6 +512,8 @@ function getRoomMap(room: Room) {
         players: room.players.map(p => getUserMap(p)),
         timeLeft: room.timeLeft,
         phase: room.phase,
+        dealerHand: room.dealerHand?.map(c => getCardMap(c)),
+        currentPlayerIndex: room.currentPlayerIndex,
     };
 }
 

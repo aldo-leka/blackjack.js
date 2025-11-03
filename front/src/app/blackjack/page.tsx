@@ -32,6 +32,8 @@ interface ApiRoom {
     players: ApiPlayer[];
     timeLeft?: number;
     phase?: "bet" | "deal_initial_cards" | "players_play" | "dealer_plays" | "payout";
+    dealerHand?: ApiCard[];
+    currentPlayerIndex?: number;
 }
 
 interface ApiCard {
@@ -154,6 +156,7 @@ export default function Page() {
             setOtherPlayers(otherPlayers);
             setPhase(room.phase!);
             setHand(me.hand?.map(c => getCard(c)) ?? []);
+            setDealerHand(room.dealerHand?.map(c => getCard(c)) ?? []);
 
             console.log(`alreadyInRoom: cash: ${me.cash}, bet: ${me.bet}, other players: ${JSON.stringify(otherPlayers)}`);
         }

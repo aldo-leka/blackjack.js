@@ -9,5 +9,5 @@ export interface Room {
     phase?: "bet" | "deal_initial_cards" | "players_play" | "dealer_plays" | "payout";
     shoe?: Card[];
     dealerHand?: Card[];
-    currentPlayer?: number;
+    currentPlayerIndex?: number;
 }
