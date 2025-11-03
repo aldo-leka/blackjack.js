@@ -510,21 +510,17 @@ export default function Page() {
         return <div className="flex flex-col items-center">
             <div className="flex w-full justify-center">
                 <div className="w-1/5"></div>
+
                 <div className="flex flex-col items-center justify-center size-48 -mt-24 bg-[#daa52080] rounded-full">
                     <div className="mt-24 text-white font-semibold italic">
                         Dealer
                     </div>
-                    <div className="relative h-24 w-32 mt-6"> 
+                    <div className="relative h-24 w-32 mt-6">
                         {dealerHand.map((card, index) =>
                             <div key={`dealer-${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
                                 <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
                             </div>
                         )}
-                    </div>
-                    <div className="text-white italic font-semibold">
-                        21 <span className="text-[#DAA520] not-italic font-light">
-                            Blackjack!
-                        </span>
                     </div>
                 </div>
 
@@ -537,12 +533,16 @@ export default function Page() {
                     </div>
                 </div>
             </div>
-            {/* {phase === "bet" && */}
-
-            <div className="text-white italic font-semibold">
-                Place your bets
+            <div className="mt-12 text-white italic font-semibold">
+                21 <span className="text-[#DAA520] not-italic font-light">
+                    Blackjack!
+                </span>
             </div>
-            {/* } */}
+            {phase === "bet" &&
+                <div className="py-4 text-white italic font-semibold">
+                    Place your bets
+                </div>
+            }
         </div>
     }
 
