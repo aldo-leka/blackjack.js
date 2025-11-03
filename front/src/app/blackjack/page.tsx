@@ -31,7 +31,7 @@ interface ApiRoom {
     name: string;
     players: ApiPlayer[];
     timeLeft?: number;
-    phase?: "bet" | "deal_initial_cards" | "players_play" | "dealer_play" | "payout";
+    phase?: "bet" | "deal_initial_cards" | "players_play" | "dealer_plays" | "payout";
 }
 
 interface ApiCard {
@@ -63,7 +63,7 @@ export default function Page() {
     // ]);
     const [timeLeft, setTimeLeft] = useState<number | undefined>();
     const [totalTime, setTotalTime] = useState<number | undefined>();
-    const [phase, setPhase] = useState<"bet" | "deal_initial_cards" | "players_play" | "dealer_play" | "payout">("deal_initial_cards");
+    const [phase, setPhase] = useState<"bet" | "deal_initial_cards" | "players_play" | "dealer_plays" | "payout">();
     const [hand, setHand] = useState<Card[]>([]);
     const [dealerHand, setDealerHand] = useState<Card[]>([]);
 
@@ -168,7 +168,7 @@ export default function Page() {
         }
 
         function dealPlayerCard(username: string, card: ApiCard) {
-            console.log(`dealPlayerCard: for ${username}, card: ${card}`);
+            console.log(`dealPlayerCard: for ${username}, card: ${JSON.stringify(card)}`);
 
             if (username === nickname) {
                 setHand(prev => [
@@ -221,6 +221,10 @@ export default function Page() {
             setOtherPlayers(otherPlayers);
         }
 
+        function playerTurn(username: string) {
+
+        }
+
         function getPlayerMap(player: ApiPlayer) {
             return {
                 nickname: player.nickname,
@@ -250,6 +254,7 @@ export default function Page() {
         socket.on("deal dealer facedown card", dealDealerFacedownCard);
         socket.on("deal dealer card", dealDealerCard);
         socket.on("restart", restart);
+        socket.on("player turn", playerTurn);
 
         return () => {
             socket.off("joined room", joinedRoom);
@@ -265,6 +270,7 @@ export default function Page() {
             socket.off("deal dealer facedown card", dealDealerFacedownCard);
             socket.off("deal dealer card", dealDealerCard);
             socket.off("restart", restart);
+            socket.off("player turn", playerTurn);
         }
     }, [isHandshakeComplete]);
 
@@ -319,7 +325,7 @@ export default function Page() {
                             </div>
                             <div className="relative h-24 w-32 -bottom-25">
                                 {dealerHand.map((card, index) =>
-                                    <div key={`${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                    <div key={`dealer-${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
                                         <Image src={card.imageUrl} alt={card.alt} width={60} height={87} draggable={false} />
                                     </div>
                                 )}
@@ -350,7 +356,7 @@ export default function Page() {
                     {phase !== "bet" && <div>
                         <div className="relative h-24 w-32">
                             {hand.map((card, index) =>
-                                <div key={`${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                <div key={`player-${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
                                     <Image src={card.imageUrl} alt={card.alt} width={60} height={87} draggable={false} />
                                 </div>
                             )}
@@ -522,12 +528,11 @@ export default function Page() {
                                         {otherPlayers[0].bet ? `$${otherPlayers[0].bet}` : ''}
                                     </div>
                                     <div className="relative h-24 w-32">
-                                        <div className="absolute">
-                                            <Image src="/images/4_of_diamonds.png" alt="" width={60} height={87} draggable={false} />
-                                        </div>
-                                        <div className="absolute left-4">
-                                            <Image src="/images/2_of_clubs.png" alt="" width={60} height={87} draggable={false} />
-                                        </div>
+                                        {otherPlayers[0].hand && otherPlayers[0].hand.map((card, index) =>
+                                            <div key={`other-player-1-${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                                <Image src={card.imageUrl} alt={card.alt} width={60} height={87} draggable={false} />
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="text-white italic font-semibold">
                                         22 <span className="text-[#DAA520] not-italic font-light">

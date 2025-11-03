@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { getRooms } from '../app';
+import { getRooms, getLoggingCard } from '../app';
 import { MAX_PLAYERS_PER_ROOM } from '../util';
 
 export const getRoomsAscii = (req: Request, res: Response) => {
@@ -18,11 +18,23 @@ export const getRoomsAscii = (req: Request, res: Response) => {
                 ascii += `║  ${roomName.padEnd(30)} Players: ${room.players.length}/${MAX_PLAYERS_PER_ROOM}${' '.repeat(21)}║\n`;
                 ascii += '║  ─────────────────────────────────────────────────────────────  ║\n';
 
+                if (room.dealerHand && room.dealerHand.length > 0) {
+                    const dealerCards = room.dealerHand.map(c => getLoggingCard(c)).join(' ');
+                    ascii += `║    DEALER: ${dealerCards.padEnd(50)}║\n`;
+                    ascii += '║                                                                   ║\n';
+                }
+
                 room.players.forEach((player, index) => {
                     const flag = player.countryCode || '??';
                     const nickname = player.nickname.padEnd(20);
                     const cash = `$${player.cash}`.padStart(10);
-                    ascii += `║    ${(index + 1)}. [${flag}] ${nickname} ${cash}${' '.repeat(14)}║\n`;
+                    const bet = player.bet ? `Bet: $${player.bet}`.padEnd(12) : ''.padEnd(12);
+                    ascii += `║    ${(index + 1)}. [${flag}] ${nickname} ${cash} ${bet}║\n`;
+
+                    if (player.hand && player.hand.length > 0) {
+                        const playerCards = player.hand.map(c => getLoggingCard(c)).join(' ');
+                        ascii += `║       Hand: ${playerCards.padEnd(52)}║\n`;
+                    }
                 });
 
                 ascii += '║                                                                   ║\n';

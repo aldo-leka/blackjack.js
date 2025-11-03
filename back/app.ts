@@ -411,6 +411,29 @@ async function dealInitialCards(room: Room) {
     room.dealerHand.push(card);
     io.to(room.name).emit("deal dealer card", card);
     logInfo(`dealInitialCards: dealt ${getLoggingCard(card)} to dealer`);
+
+    startPlayerTurns(room);
+}
+
+async function startPlayerTurns(room: Room) {
+    room.currentPlayer = 0;
+    io.to(room.name).emit("player turn", room.players[0].nickname);
+
+    room.timeLeft = TIMER;
+    room.timer = setInterval(() => {
+        room.timeLeft!--;
+
+        logInfo(room.timeLeft);
+
+        io.to(room.name).emit("timer update", room.timeLeft, TIMER);
+
+        if (room.timeLeft! <= 0) {
+            room.timeLeft = 0;
+            clearInterval(room.timer);
+        }
+    }, 1000);
+
+    io.to(room.name).emit("timer update", TIMER, TIMER);
 }
 
 async function wait(seconds: number) {
@@ -431,7 +454,7 @@ function restartGame(room: Room) {
 
     io.to(room.name).emit("restart", getRoomMap(room));
 
-    const timer = setInterval(() => {
+    room.timer = setInterval(() => {
         room.timeLeft!--;
 
         logInfo(room.timeLeft);
@@ -440,7 +463,7 @@ function restartGame(room: Room) {
 
         if (room.timeLeft! <= 0) {
             room.timeLeft = 0;
-            clearInterval(timer);
+            clearInterval(room.timer);
             dealInitialCards(room);
         }
     }, 1000);
@@ -461,7 +484,7 @@ function shouldReshuffle(cardsDealt: number): boolean {
     return cardsDealt >= dealCardsBeforeShuffle;
 }
 
-function getLoggingCard(card: Card): string {
+export function getLoggingCard(card: Card): string {
     const SUIT_EMOJI: Record<string, string> = {
         spades: "♠",
         hearts: "♥",
