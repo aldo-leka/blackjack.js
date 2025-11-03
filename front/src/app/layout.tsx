@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Blackjack",
-  description: "Online Multiplayer Blackjack",
+  description: "Best Online Multiplayer Blackjack",
 };
 
 export default function RootLayout({

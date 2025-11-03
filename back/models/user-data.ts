@@ -1,3 +1,4 @@
+import { Card } from "../util";
 import { Room } from "./room";
 
 export interface UserData {
@@ -8,4 +9,6 @@ export interface UserData {
     roomName?: string;
     cash?: number;
     bet?: number;
+    check?: boolean;
+    hand?: Card[];
 }

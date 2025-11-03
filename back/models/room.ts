@@ -1,3 +1,4 @@
+import { Card } from "../util";
 import { UserData } from "./user-data";
 
 export interface Room {
@@ -6,4 +7,6 @@ export interface Room {
     timer?: NodeJS.Timeout;
     timeLeft?: number;
     phase?: "bet" | "deal_initial_cards" | "players_play" | "dealer_play" | "payout";
+    shoe?: Card[];
+    dealerHand?: Card[];
 }

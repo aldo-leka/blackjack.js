@@ -10,10 +10,10 @@ import { createServer } from 'node:http';
 import { Server, Socket } from 'socket.io';
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./auth";
-import { logInfo, logWarning } from './log';
+import { logError, logInfo, logWarning } from './log';
 import { IpApiResponse } from './models/ip-api';
 import { UserData } from './models/user-data';
-import { CHIPS, DAILY_REFILL_VALUE, MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID, ROOM_NAME_FORMAT, TIMER } from './util';
+import { CHIPS, DAILY_REFILL_VALUE, DECK, NUM_DECKS, MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID, ROOM_NAME_FORMAT, TIMER, TOTAL_CARDS, DECK_PENETRATION, shuffle, Card, DEAL_TIME } from './util';
 import prisma from './db';
 import { Room } from './models/room';
 
@@ -91,13 +91,18 @@ io.on('connection', async (socket) => {
             }
         });
 
-        users.set(nickname, {
-            ...(existing || {}),
-            nickname,
-            socketId: socket.id,
-            countryCode,
-            cash: tempUser.cash
-        });
+        if (existing) {
+            existing.socketId = socket.id;
+            existing.countryCode = countryCode;
+            existing.cash = tempUser.cash;
+        } else {
+            users.set(nickname, {
+                nickname,
+                socketId: socket.id,
+                countryCode,
+                cash: tempUser.cash
+            });
+        }
 
         logInfo(`on nickname handshake: ${nickname} from ${countryCode} (ip: ${ip})`);
 
@@ -159,24 +164,20 @@ io.on('connection', async (socket) => {
 
         // user already has a room aka is reconnecting
         if (user.roomName) {
-            // const otherPlayers = Array.from(users.values())
-            //     .filter(u => u.roomName === user.roomName && u.nickname !== nickname)
-            //     .map(u => ({
-            //         nickname: u.nickname,
-            //         countryCode: u.countryCode,
-            //         cash: u.cash,
-            //         bet: u.bet
-            //     }));
-
             socket.join(user.roomName); // sanity check
             socket.emit("already in room", getUserMap(user), getRoomMap(user.room!));
             socket.to(user.roomName).emit("user reconnected", nickname);
 
             const room = rooms.get(user.roomName);
-            if (room!.phase === "bet") {
-                socket.emit("timer update", room!.timeLeft, TIMER);
+            switch (room!.phase) {
+                case "bet":
+                    socket.emit("timer update", room!.timeLeft, TIMER);
+                    break;
+                case "deal_initial_cards":
+
+                    break;
             }
-            
+
             return;
         }
 
@@ -213,6 +214,7 @@ io.on('connection', async (socket) => {
                     if (room.timeLeft! <= 0) {
                         room.timeLeft = 0;
                         clearInterval(timer);
+                        dealInitialCards(room);
                     }
                 }
             }, 1000);
@@ -226,6 +228,9 @@ io.on('connection', async (socket) => {
             });
 
             socket.emit("timer update", TIMER, TIMER);
+
+            const room = rooms.get(roomFoundName)!;
+            room.shoe = buildShoe();
         }
         else {
             const room = rooms.get(roomFoundName)!;
@@ -236,12 +241,8 @@ io.on('connection', async (socket) => {
 
         const room = rooms.get(roomFoundName)!;
 
-        // update user data with found room
-        users.set(nickname, {
-            ...user,
-            room: room,
-            roomName: roomFoundName
-        });
+        user.room = room;
+        user.roomName = roomFoundName;
 
         socket.emit("joined room", getUserMap(user), getRoomMap(room));
         socket.to(roomFoundName).emit("user joined", getUserMap(user));
@@ -300,11 +301,109 @@ io.on('connection', async (socket) => {
 
         socket.to(user.roomName).emit("user change bet", nickname, user.bet);
     });
+
+    socket.on("check", () => {
+        const nickname = socket.data.nickname;
+        if (!nickname) {
+            logWarning("check: no socket nickname");
+            return;
+        }
+
+        const user = users.get(nickname);
+        if (!user) {
+            logWarning(`check: no user for nickname '${nickname}'`);
+            return;
+        }
+
+        if (!user.roomName) {
+            logWarning(`check: no room for user '${nickname}'`);
+            return;
+        }
+
+        const room = user.room!;
+        if (room.phase !== "bet") {
+            logWarning(`check: room is not in bet phase`);
+            return;
+        }
+
+        if (user.check === true) {
+            logWarning(`check: '${nickname}' is already checked`);
+            return;
+        }
+
+        user.check = true;
+        let checkCount = 0;
+        room.players.forEach(player => {
+            if (player.check) {
+                checkCount++;
+            }
+        });
+
+        const allChecked = checkCount === room.players.length;
+        if (allChecked) {
+            clearInterval(room.timer);
+            dealInitialCards(room);
+        }
+    });
 });
 
-export function getRooms() {
-    return rooms;
+/**
+ * As seen in PokerStars VR:
+ * https://www.youtube.com/watch?v=u0K2BvyKTXU
+ * 1. Deal 1st face up card for each player
+ * 2. Deal 1st face down card for the dealer
+ * 3. Deal 2nd face up card for each player
+ * 4. Deal 2nd face up card for the dealer
+ */
+async function dealInitialCards(room: Room) {
+    if (!room.shoe) {
+        logError("dealInitialCards: no shoe!", room);
+        return;
+    }
+
+    room.phase = "deal_initial_cards";
+    room.players.forEach(async player => {
+        if (player.bet && player.bet > 0) {
+            await new Promise(resolve => setTimeout(resolve, DEAL_TIME));
+
+            if (room.shoe!.length === 0) {
+                logError("dealInitialCards: shoe is empty!", getLoggingRoom(room));
+                return;
+            }
+
+            const card = dealCard(room.shoe!);
+            player.hand?.push(card);
+            io.to(room.name).emit("deal", player.nickname, card);
+
+            logInfo(`dealInitialCards: dealt ${cardToString(card)} to ${player.nickname}`);
+        }
+    });
 }
+
+function dealCard(shoe: Card[]) {
+    return shoe.shift()!;
+}
+
+function buildShoe() {
+    return shuffle(Array(NUM_DECKS).fill(null).flatMap(() => [...DECK]));
+}
+
+function shouldReshuffle(cardsDealt: number): boolean {
+    const dealCardsBeforeShuffle = Math.floor(TOTAL_CARDS * DECK_PENETRATION); // ~234
+    return cardsDealt >= dealCardsBeforeShuffle;
+}
+
+function cardToString(card: Card): string {
+    const SUIT_EMOJI: Record<string, string> = {
+        spades: "♠",
+        hearts: "♥",
+        clubs: "♣",
+        diamonds: "♦",
+    };
+
+    return `${card.rank}${SUIT_EMOJI[card.suit]}`;
+}
+
 
 function getUserMap(user: UserData) {
     return {
@@ -312,15 +411,27 @@ function getUserMap(user: UserData) {
         countryCode: user.countryCode,
         cash: user.cash,
         bet: user.bet,
+        check: user.check,
+
     }
 }
 
 function getRoomMap(room: Room) {
     return {
         name: room.name,
+        players: room.players.map(p => getUserMap(p)),
+        timeLeft: room.timeLeft,
+        phase: room.phase,
+    };
+}
+
+function getLoggingRoom(room: Room) {
+    return {
+        name: room.name,
         players: room.players,
         timeLeft: room.timeLeft,
         phase: room.phase,
+        dealerHand: room.dealerHand,
     };
 }
 
@@ -346,6 +457,10 @@ async function getCountryCodeFromIP(ip: string) {
         logWarning("Geo lookup failed", err);
     }
     return null;
+}
+
+export function getRooms() {
+    return rooms;
 }
 
 export default server;

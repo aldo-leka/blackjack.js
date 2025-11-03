@@ -2,17 +2,24 @@
 
 import Chip from "@/components/Chip";
 import { socket } from "@/lib/socket";
-import { Repeat } from "lucide-react";
+import { Check, CirclePlus, Hand, Repeat, Split } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
 import { CHIPS } from "@/lib/util";
 import Image from "next/image";
+
+interface Card {
+    rank: string;
+    suit: string;
+}
 
 interface Player {
     nickname: string;
     countryCode: string;
     worth: number;
     bet?: number;
+    check?: boolean;
+    hand?: Card[];
     disconnected: boolean;
 };
 
@@ -21,6 +28,8 @@ interface ApiPlayer {
     countryCode: string;
     cash?: number;
     bet?: number;
+    check?: boolean;
+    hand?: Card[]
 }
 
 interface ApiRoom {
@@ -41,6 +50,7 @@ export default function Page() {
             countryCode: "somewhere",
             worth: 120,
             bet: 10,
+            check: true,
             disconnected: false,
         },
         {
@@ -53,7 +63,7 @@ export default function Page() {
     ]);
     const [timeLeft, setTimeLeft] = useState<number | undefined>();
     const [totalTime, setTotalTime] = useState<number | undefined>();
-    const [phase, setPhase] = useState<"bet" | "deal_initial_cards" | "players_play" | "dealer_play" | "payout">("players_play");
+    const [phase, setPhase] = useState<"bet" | "deal_initial_cards" | "players_play" | "dealer_play" | "payout">("deal_initial_cards");
 
     useEffect(() => {
         if (!isHandshakeComplete) {
@@ -232,10 +242,10 @@ export default function Page() {
                             </div>
                             <div className="relative h-24 w-32 -bottom-25">
                                 <div className="absolute">
-                                    <Image src="/images/card back red.png" alt="" width={60} height={87} />
+                                    <Image src="/images/card back red.png" alt="" width={60} height={87} draggable={false} />
                                 </div>
                                 <div className="absolute left-4">
-                                    <Image src="/images/2_of_clubs.png" alt="" width={60} height={87} />
+                                    <Image src="/images/2_of_clubs.png" alt="" width={60} height={87} draggable={false} />
                                 </div>
                             </div>
                         </div>
@@ -262,7 +272,22 @@ export default function Page() {
                     <h2 className="text-white italic font-semibold">
                         You {worth && <>(${worth})</>}
                     </h2>
-                    <div className="flex gap-1.5">
+                    {phase !== "bet" && <div>
+                        <div className="relative h-24 w-32">
+                            <div className="absolute">
+                                <Image src="/images/4_of_diamonds.png" alt="" width={60} height={87} draggable={false} />
+                            </div>
+                            <div className="absolute left-4">
+                                <Image src="/images/2_of_clubs.png" alt="" width={60} height={87} draggable={false} />
+                            </div>
+                        </div>
+                        <div className="text-white italic font-semibold">
+                            21 <span className="text-[#DAA520] not-italic font-light">
+                                Blackjack!
+                            </span>
+                        </div>
+                    </div>}
+                    {phase === "bet" && <div className="flex gap-1.5">
                         <div className="flex flex-col gap-2">
                             <Chip color="white" amount={CHIPS[0]} />
                             <button
@@ -328,12 +353,12 @@ export default function Page() {
                                 -
                             </button>
                         </div>
-                    </div>
+                    </div>}
                 </div>
 
                 <div className="flex flex-col items-center gap-2 justify-self-start">
                     <div className="relative size-36">
-                        {totalTime && timeLeft ? (
+                        {phase === "bet" && totalTime && timeLeft ? (
                             <svg className="absolute inset-0 -rotate-90" viewBox="0 0 144 144">
                                 <circle
                                     cx="72"
@@ -363,14 +388,45 @@ export default function Page() {
                         </div>
                     </div>
                     <div className="flex gap-2 justify-between">
-                        <button className="px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]">
-                            <Repeat size={16} />
-                        </button>
-                        <button
-                            className="px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
-                        >
-                            2X
-                        </button>
+                        {phase !== "bet" &&
+                            <>
+                                <button
+                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
+                                >
+                                    <CirclePlus size={16} />
+                                </button>
+                                <button
+                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
+                                >
+                                    <Hand size={16} />
+                                </button>
+                                <button
+                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
+                                >
+                                    <Split size={16} />
+                                </button>
+                            </>
+                        }
+                        {phase === "bet" &&
+                            <>
+                                <button
+                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
+                                >
+                                    <Repeat size={16} />
+                                </button>
+                                <button
+                                    className="px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
+                                >
+                                    2X
+                                </button>
+                                <button
+                                    onClick={() => socket.emit("check")}
+                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
+                                >
+                                    <Check size={16} />
+                                </button>
+                            </>
+                        }
                     </div>
                 </div>
             </div>
@@ -382,60 +438,58 @@ export default function Page() {
                             <h2 className="text-white italic font-semibold">
                                 {otherPlayers[0].nickname} (${otherPlayers[0].worth})
                             </h2>
-                            <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-36">
-                                <div className="flex justify-center items-end text-white italic font-semibold pb-1">
-                                    {otherPlayers[0].bet ? `$${otherPlayers[0].bet}` : ''}
+                            {phase !== "bet" &&
+                                <div className="flex flex-col items-start">
+                                    <div className="text-white italic font-semibold">
+                                        {otherPlayers[0].bet ? `$${otherPlayers[0].bet}` : ''}
+                                    </div>
+                                    <div className="relative h-24 w-32">
+                                        <div className="absolute">
+                                            <Image src="/images/4_of_diamonds.png" alt="" width={60} height={87} draggable={false} />
+                                        </div>
+                                        <div className="absolute left-4">
+                                            <Image src="/images/2_of_clubs.png" alt="" width={60} height={87} draggable={false} />
+                                        </div>
+                                    </div>
+                                    <div className="text-white italic font-semibold">
+                                        22 <span className="text-[#DAA520] not-italic font-light">
+                                            Bust!
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="flex justify-center items-center h-full">
-                                    {(() => {
-                                        const playerBetChips = otherPlayers[0].bet
-                                            ? convertToChips(otherPlayers[0].bet)
-                                            : [0, 0, 0, 0, 0];
-                                        return (
-                                            <>
-                                                <Chip color="white" amount={playerBetChips[0]} />
-                                                <Chip color="red" amount={playerBetChips[1]} />
-                                                <Chip color="green" amount={playerBetChips[2]} />
-                                                <Chip color="black" amount={playerBetChips[3]} />
-                                                <Chip color="blue" amount={playerBetChips[4]} />
-                                            </>
-                                        );
-                                    })()}
+                            }
+                            {phase === "bet" &&
+                                <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-36">
+                                    <div className="flex justify-center items-end text-white italic font-semibold pb-1">
+                                        {otherPlayers[0].bet ? `$${otherPlayers[0].bet}` : ''}
+                                    </div>
+                                    <div className="flex justify-center items-center h-full">
+                                        {(() => {
+                                            const playerBetChips = otherPlayers[0].bet
+                                                ? convertToChips(otherPlayers[0].bet)
+                                                : [0, 0, 0, 0, 0];
+                                            return (
+                                                <>
+                                                    <Chip color="white" amount={playerBetChips[0]} />
+                                                    <Chip color="red" amount={playerBetChips[1]} />
+                                                    <Chip color="green" amount={playerBetChips[2]} />
+                                                    <Chip color="black" amount={playerBetChips[3]} />
+                                                    <Chip color="blue" amount={playerBetChips[4]} />
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
+                                    <div className="flex justify-center text-white">
+                                        {otherPlayers[0].check ? <Check size={16} /> : ""}
+                                    </div>
                                 </div>
-                            </div>
+                            }
                         </div>
                     }
                 </div>
 
                 <div className="justify-self-start">
-                    {otherPlayers.length > 1 &&
-                        <div className={`${otherPlayers[1].disconnected ? "opacity-50" : ""} flex flex-col items-center gap-2`}>
-                            <h2 className="text-white italic font-semibold">
-                                {otherPlayers[1].nickname} (${otherPlayers[1].worth})
-                            </h2>
-                            <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-36">
-                                <div className="flex justify-center items-end text-white italic font-semibold pb-1">
-                                    {otherPlayers[1].bet ? `$${otherPlayers[1].bet}` : ''}
-                                </div>
-                                <div className="flex justify-center items-center h-full">
-                                    {(() => {
-                                        const playerBetChips = otherPlayers[1].bet
-                                            ? convertToChips(otherPlayers[1].bet)
-                                            : [0, 0, 0, 0, 0];
-                                        return (
-                                            <>
-                                                <Chip color="white" amount={playerBetChips[0]} />
-                                                <Chip color="red" amount={playerBetChips[1]} />
-                                                <Chip color="green" amount={playerBetChips[2]} />
-                                                <Chip color="black" amount={playerBetChips[3]} />
-                                                <Chip color="blue" amount={playerBetChips[4]} />
-                                            </>
-                                        );
-                                    })()}
-                                </div>
-                            </div>
-                        </div>
-                    }
+                    {/* copy pasta */}
                 </div>
             </div>
 
