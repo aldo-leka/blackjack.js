@@ -49,19 +49,21 @@ interface ApiCard {
 
 export default function Page() {
     const { nickname, isHandshakeComplete } = useNickname();
-    const [worth, setWorth] = useState<number | undefined>();
-    const [bet, setBet] = useState<number | undefined>();
-    const [betBefore, setBetBefore] = useState<number | undefined>();
+    const [worth, setWorth] = useState<number>();
+    const [bet, setBet] = useState<number>();
+    const [betBefore, setBetBefore] = useState<number>();
     const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
-    const [timeLeft, setTimeLeft] = useState<number | undefined>();
-    const [totalTime, setTotalTime] = useState<number | undefined>();
-    const [phase, setPhase] = useState<Phase | undefined>();
+    const [timeLeft, setTimeLeft] = useState<number>();
+    const [totalTime, setTotalTime] = useState<number>();
+    const [phase, setPhase] = useState<Phase>();
     const [hand, setHand] = useState<Card[]>([]);
     const [dealerHand, setDealerHand] = useState<Card[]>([]);
     const [dealerHandValue, setDealerHandValue] = useState<HandValue>();
     const [status, setStatus] = useState("");
     const [isMyTurn, setIsMyTurn] = useState(false);
     const [handValue, setHandValue] = useState<HandValue>();
+    const [check, setCheck] = useState<boolean>();
+    const [stand, setStand] = useState<boolean>();
 
     useEffect(() => {
         if (!isHandshakeComplete) {
@@ -239,6 +241,8 @@ export default function Page() {
             setDealerHand([]);
             setDealerHandValue(undefined);
             setIsMyTurn(false);
+            setCheck(false);
+            setStand(false);
         }
 
         function playersTurn(room: ApiRoom) {
@@ -399,7 +403,7 @@ export default function Page() {
             socket.emit("change bet", index, "remove");
         }
     }
-    
+
     return (
         <div className="grid grid-rows-4 grid-cols-2 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
             <div id="dealer-zone" className="col-span-2">
@@ -431,68 +435,68 @@ export default function Page() {
                         </div>
                     </div>}
                     {phase === "bet" && <div className="flex gap-2.5">
-                        <div className="flex flex-col gap-2">
-                            <Chip color="white" amount={CHIPS[0]} />
+                        <div className="flex flex-col gap-2 items-center">
+                            <Chip color="white" amount={CHIPS[0]} size={30} />
                             <button
                                 onClick={() => addBet(0)}
-                                className={`${CHIPS[0] > cash ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${CHIPS[0] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
                                 +
                             </button>
                             <button
                                 onClick={() => removeBet(0)}
-                                className={`${!bet || (bet < CHIPS[0]) ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${!bet || (bet < CHIPS[0]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
                                 -
                             </button>
                         </div>
-                        <div className="flex flex-col gap-2">
-                            <Chip color="red" amount={CHIPS[1]} />
+                        <div className="flex flex-col gap-2 items-center">
+                            <Chip color="red" amount={CHIPS[1]} size={30} />
                             <button
                                 onClick={() => addBet(1)}
-                                className={`${CHIPS[1] > cash ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${CHIPS[1] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
                                 +
                             </button>
                             <button
                                 onClick={() => removeBet(1)}
-                                className={`${!bet || (bet < CHIPS[1]) ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${!bet || (bet < CHIPS[1]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
                                 -
                             </button>
                         </div>
-                        <div className="flex flex-col gap-2">
-                            <Chip color="green" amount={CHIPS[2]} />
+                        <div className="flex flex-col gap-2 items-center">
+                            <Chip color="green" amount={CHIPS[2]} size={30} />
                             <button
                                 onClick={() => addBet(2)}
-                                className={`${CHIPS[2] > cash ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${CHIPS[2] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
                                 +
                             </button>
                             <button
                                 onClick={() => removeBet(2)}
-                                className={`${!bet || (bet < CHIPS[2]) ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${!bet || (bet < CHIPS[2]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
                                 -
                             </button>
                         </div>
-                        <div className="flex flex-col gap-2">
-                            <Chip color="black" amount={CHIPS[3]} />
+                        <div className="flex flex-col gap-2 items-center">
+                            <Chip color="black" amount={CHIPS[3]} size={30} />
                             <button
                                 onClick={() => addBet(3)}
-                                className={`${CHIPS[3] > cash ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${CHIPS[3] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
                                 +
                             </button>
                             <button
                                 onClick={() => removeBet(3)}
-                                className={`${!bet || (bet < CHIPS[3]) ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${!bet || (bet < CHIPS[3]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
                                 -
                             </button>
                         </div>
-                        <div className="flex flex-col gap-2">
-                            <Chip color="blue" amount={CHIPS[4]} />
+                        <div className="flex flex-col gap-2 items-center">
+                            <Chip color="blue" amount={CHIPS[4]} size={30} />
                             <button
                                 onClick={() => addBet(4)}
-                                className={`${CHIPS[4] > cash ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${CHIPS[4] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
                                 +
                             </button>
                             <button
                                 onClick={() => removeBet(4)}
-                                className={`${!bet || (bet < CHIPS[4]) ? "opacity-50" : ""} bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${!bet || (bet < CHIPS[4]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
                                 -
                             </button>
                         </div>
@@ -500,7 +504,7 @@ export default function Page() {
                 </div>
 
                 <div className="flex flex-col items-center gap-2 justify-self-start">
-                    <div className="relative size-36">
+                    <div className="relative size-42">
                         {((phase === "bet" && totalTime && timeLeft) || (phase === "players_turn" && isMyTurn && totalTime && timeLeft)) ? (
                             <svg className="absolute inset-0 -rotate-90" viewBox="0 0 144 144">
                                 <circle
@@ -517,16 +521,16 @@ export default function Page() {
                             </svg>
                         ) : ''}
 
-                        <div className="grid grid-rows-3 bg-[#daa52080] rounded-full size-36 border-4 border-transparent">
+                        <div className="grid grid-rows-3 bg-[#daa52080] rounded-full size-42 border-4 border-transparent">
                             <div className="flex justify-center items-end text-white italic font-semibold pb-1">
                                 {bet ? `$${bet}` : ''}
                             </div>
                             <div className="flex justify-center items-center">
-                                <Chip color="white" amount={betChips[0]} />
-                                <Chip color="red" amount={betChips[1]} />
-                                <Chip color="green" amount={betChips[2]} />
-                                <Chip color="black" amount={betChips[3]} />
-                                <Chip color="blue" amount={betChips[4]} />
+                                <Chip color="white" amount={betChips[0]} size={30} />
+                                <Chip color="red" amount={betChips[1]} size={30} />
+                                <Chip color="green" amount={betChips[2]} size={30} />
+                                <Chip color="black" amount={betChips[3]} size={30} />
+                                <Chip color="blue" amount={betChips[4]} size={30} />
                             </div>
                         </div>
                     </div>
@@ -538,26 +542,31 @@ export default function Page() {
                                     className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]"
                                     title="Hit - Draw another card"
                                 >
-                                    <Plus />
+                                    <Plus size={25} />
                                 </button>
                                 <button
-                                    onClick={() => socket.emit("stand")}
+                                    onClick={() => {
+                                        if (!stand) {
+                                            setStand(true);
+                                            socket.emit("stand");
+                                        }
+                                    }}
+                                    className={`${stand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]`}
+                                    title="Stand - Keep current hand"
+                                >
+                                    <Hand size={25} />
+                                </button>
+                                <button
                                     className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]"
                                     title="Stand - Keep current hand"
                                 >
-                                    <Hand />
+                                    <Split size={25} />
                                 </button>
                                 <button
                                     className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]"
                                     title="Stand - Keep current hand"
                                 >
-                                    <Split />
-                                </button>
-                                <button
-                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]"
-                                    title="Stand - Keep current hand"
-                                >
-                                    <Split />
+                                    <Split size={25} />
                                 </button>
                             </div>
                         }
@@ -565,13 +574,14 @@ export default function Page() {
                             <div className="grid grid-cols-2 gap-2">
                                 <button
                                     onClick={() => {
-                                        if (bet && bet > 0) {
+                                        if (bet && bet > 0 && !check) {
+                                            setCheck(check);
                                             socket.emit("check");
                                         }
                                     }}
-                                    className={`${!bet || bet === 0 ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                    className={`${!bet || bet === 0 || check ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                 >
-                                    <Check size={16} />
+                                    <Check size={25} />
                                 </button>
                                 <button
                                     onClick={() => {
@@ -582,9 +592,9 @@ export default function Page() {
                                     }}
                                     className={`${!bet || bet === 0 ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                 >
-                                    <X size={16} />
+                                    <X size={25} />
                                 </button>
-                                {worth && betBefore && worth >= betBefore &&
+                                {worth && betBefore && worth >= betBefore ?
                                     <button
                                         onClick={() => {
                                             if (worth && betBefore && worth >= betBefore) {
@@ -594,20 +604,22 @@ export default function Page() {
                                         }}
                                         className={`px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     >
-                                        <Repeat size={16} />
-                                    </button>
+                                        <Repeat size={25} />
+                                    </button> : <></>
                                 }
-                                {worth && betBefore && worth >= betBefore * 2 && <button
-                                    onClick={() => {
-                                        if (worth && betBefore && worth >= betBefore * 2) {
-                                            setBet(betBefore * 2);
-                                            socket.emit("double bet");
-                                        }
-                                    }}
-                                    className={`px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
-                                >
-                                    2X
-                                </button>}
+                                {worth && betBefore && worth >= betBefore * 2 ?
+                                    <button
+                                        onClick={() => {
+                                            if (worth && betBefore && worth >= betBefore * 2) {
+                                                setBet(betBefore * 2);
+                                                socket.emit("double bet");
+                                            }
+                                        }}
+                                        className={`px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                    >
+                                        2X
+                                    </button> : <></>
+                                }
                             </div>
                         }
                     </div>
@@ -708,8 +720,8 @@ export default function Page() {
                         </div>
                     </div>
                 }
-                {phase === "bet" &&
-                    <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-36">
+                {phase === "bet" ?
+                    <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-42">
                         <div className="flex justify-center items-end text-white italic font-semibold pb-1">
                             {otherPlayer.bet ? `$${otherPlayer.bet}` : ''}
                         </div>
@@ -720,11 +732,11 @@ export default function Page() {
                                     : [0, 0, 0, 0, 0];
                                 return (
                                     <>
-                                        <Chip color="white" amount={playerBetChips[0]} />
-                                        <Chip color="red" amount={playerBetChips[1]} />
-                                        <Chip color="green" amount={playerBetChips[2]} />
-                                        <Chip color="black" amount={playerBetChips[3]} />
-                                        <Chip color="blue" amount={playerBetChips[4]} />
+                                        <Chip color="white" amount={playerBetChips[0]} size={30} />
+                                        <Chip color="red" amount={playerBetChips[1]} size={30} />
+                                        <Chip color="green" amount={playerBetChips[2]} size={30} />
+                                        <Chip color="black" amount={playerBetChips[3]} size={30} />
+                                        <Chip color="blue" amount={playerBetChips[4]} size={30} />
                                     </>
                                 );
                             })()}
@@ -733,7 +745,7 @@ export default function Page() {
                             {otherPlayer.check ? <Check size={16} /> : ""}
                         </div>
                     </div>
-                }
+                    : <></>}
             </div>;
         }
 

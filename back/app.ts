@@ -474,7 +474,7 @@ io.on('connection', async (socket) => {
         let totalPlayers = 0;
         room.players.forEach(player => {
             totalPlayers++;
-            if (player.check) {
+            if (player.check === true) {
                 checkCount++;
             }
         });
@@ -517,6 +517,11 @@ io.on('connection', async (socket) => {
 
         if (!user.hand) {
             logWarning(`hit: no hand for user '${nickname}'`);
+            return;
+        }
+
+        if (user.stand === true) {
+            logWarning(`hit: user '${nickname}' is standing`);
             return;
         }
 
@@ -567,6 +572,12 @@ io.on('connection', async (socket) => {
             return;
         }
 
+        if (user.stand === true) {
+            logWarning(`stand: '${nickname}' is already marked as stand`);
+            return;
+        }
+
+        user.stand = true;
         logInfo(`stand: ${nickname} stands with ${getHandValue(user.hand)}`);
         moveToNextPlayer(room);
     });
@@ -698,6 +709,7 @@ async function startPlayerTurns(room: Room) {
         if (room.timeLeft! <= 0) {
             room.timeLeft = 0;
             clearInterval(room.timer);
+            currentPlayer.stand = true;
             logInfo(`startPlayerTurns: ${currentPlayer.nickname} timed out, auto-standing`);
             moveToNextPlayer(room);
         }
@@ -749,6 +761,7 @@ async function moveToNextPlayer(room: Room) {
         if (room.timeLeft! <= 0) {
             room.timeLeft = 0;
             clearInterval(room.timer);
+            currentPlayer.stand = true;
             logInfo(`moveToNextPlayer: ${currentPlayer.nickname} timed out, auto-standing`);
             moveToNextPlayer(room);
         }
@@ -895,6 +908,7 @@ function restartGame(room: Room) {
     room.players.forEach(player => {
         player.bet = undefined;
         player.check = undefined;
+        player.stand = undefined;
         player.hand = undefined;
     });
 

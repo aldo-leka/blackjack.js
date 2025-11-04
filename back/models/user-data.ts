@@ -11,5 +11,6 @@ export interface UserData {
     bet?: number;
     betBefore?: number;
     check?: boolean;
+    stand?: boolean;
     hand?: Card[];
 }
