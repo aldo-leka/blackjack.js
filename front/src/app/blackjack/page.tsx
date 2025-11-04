@@ -410,7 +410,7 @@ export default function Page() {
                 {getDealerComponent()}
             </div>
 
-            <div id="player-zone" className="col-span-2 grid grid-cols-2 gap-8 px-8">
+            <div id="player-zone" className="col-span-2 grid grid-cols-2 gap-2 px-8">
                 <div className="flex flex-col items-center gap-2 justify-self-end">
                     <h2 className="text-white italic font-semibold">
                         You {worth && <>(${worth})</>}
@@ -434,7 +434,7 @@ export default function Page() {
                             )}
                         </div>
                     </div>}
-                    {phase === "bet" && <div className="flex gap-2.5">
+                    {phase === "bet" && <div className="flex gap-2">
                         <div className="flex flex-col gap-2 items-center">
                             <Chip color="white" amount={CHIPS[0]} size={30} />
                             <button
@@ -626,7 +626,7 @@ export default function Page() {
                 </div>
             </div>
 
-            <div id="other-players" className="col-span-2 grid grid-cols-2 gap-8 px-8">
+            <div id="other-players" className="col-span-2 grid grid-cols-2 gap-2 px-8">
                 <div className="justify-self-end">
                     {getOtherPlayerComponent(0)}
                 </div>
@@ -682,11 +682,13 @@ export default function Page() {
                     </div>
                 </div>
             </div>
-            <div className="my-4 text-white italic font-semibold">
+            <div className="mt-4 text-white italic font-semibold">
                 {status && <>{status}</>}
             </div>
         </div>
     }
+
+    // TODO If dealer has blackjack, reveal sooner? see pokerstars.
 
     function getOtherPlayerComponent(playerIndex: number) {
         if (otherPlayers.length > playerIndex) {
