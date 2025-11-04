@@ -13,6 +13,11 @@ export type Card = {
     alt: string;
 };
 
+export type HandValue = {
+    value: { low: number; high: number } | number;
+    status: "Blackjack!" | "Bust!" | null;
+}
+
 export const DECK: Card[] = [
     { rank: "A", suit: "spades", imageUrl: "/images/ace_of_spades.png", alt: "Ace of Spades playing card" },
     { rank: "2", suit: "spades", imageUrl: "/images/2_of_spades.png", alt: "Two of Spades playing card" },

@@ -5,7 +5,7 @@ import { socket } from "@/lib/socket";
 import { Check, CirclePlus, Hand, Repeat, Split } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
-import { Card, CHIPS, DECK } from "@/lib/util";
+import { Card, CHIPS, DECK, HandValue } from "@/lib/util";
 import Image from "next/image";
 
 interface Player {
@@ -15,6 +15,7 @@ interface Player {
     bet?: number;
     check?: boolean;
     hand?: Card[];
+    handValue?: HandValue;
     disconnected: boolean;
 };
 
@@ -25,15 +26,18 @@ interface ApiPlayer {
     bet?: number;
     check?: boolean;
     hand?: ApiCard[]
+    handValue: HandValue;
 }
+
+type Phase = "bet" | "deal_initial_cards" | "players_turn" | "dealers_turn" | "payout";
 
 interface ApiRoom {
     name: string;
     players: ApiPlayer[];
     timeLeft?: number;
-    phase?: "bet" | "deal_initial_cards" | "players_play" | "dealer_plays" | "payout";
+    phase?: Phase;
     dealerHand?: ApiCard[];
-    currentPlayerIndex?: number;
+    currentPlayer?: ApiPlayer;
 }
 
 interface ApiCard {
@@ -43,8 +47,8 @@ interface ApiCard {
 
 export default function Page() {
     const { nickname, isHandshakeComplete } = useNickname();
-    const [worth, setWorth] = useState<number | undefined>(undefined);
-    const [bet, setBet] = useState<number | undefined>(undefined);
+    const [worth, setWorth] = useState<number | undefined>();
+    const [bet, setBet] = useState<number | undefined>();
     const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
     // const [otherPlayers, setOtherPlayers] = useState<Player[]>([
     //     {
@@ -65,9 +69,13 @@ export default function Page() {
     // ]);
     const [timeLeft, setTimeLeft] = useState<number | undefined>();
     const [totalTime, setTotalTime] = useState<number | undefined>();
-    const [phase, setPhase] = useState<"bet" | "deal_initial_cards" | "players_play" | "dealer_plays" | "payout">();
+    const [phase, setPhase] = useState<Phase | undefined>();
     const [hand, setHand] = useState<Card[]>([]);
     const [dealerHand, setDealerHand] = useState<Card[]>([]);
+    const [dealerHandValue, setDealerHandValue] = useState<HandValue>();
+    const [status, setStatus] = useState("");
+    const [isMyTurn, setIsMyTurn] = useState(false);
+    const [handValue, setHandValue] = useState<HandValue>();
 
     useEffect(() => {
         if (!isHandshakeComplete) {
@@ -79,6 +87,7 @@ export default function Page() {
         function joinedRoom(me: ApiPlayer, room: ApiRoom) {
             setWorth(me.cash);
             setPhase(room.phase!);
+            setStatus(getStatus(room.phase!));
 
             const otherPlayers = room.players
                 .filter(p => p.nickname !== me.nickname)
@@ -156,8 +165,13 @@ export default function Page() {
             setBet(me.bet);
             setOtherPlayers(otherPlayers);
             setPhase(room.phase!);
+
+            const isMyTurn = room.currentPlayer?.nickname === nickname;
+            setStatus(getStatus(room.phase!, isMyTurn));
+            setIsMyTurn(isMyTurn);
             setHand(me.hand?.map(c => getCard(c)) ?? []);
             setDealerHand(room.dealerHand?.map(c => getCard(c)) ?? []);
+            setHandValue(me.handValue);
 
             console.log(`alreadyInRoom: cash: ${me.cash}, bet: ${me.bet}, other players: ${JSON.stringify(otherPlayers)}`);
         }
@@ -167,33 +181,37 @@ export default function Page() {
             setTotalTime(totalTime);
         }
 
-        function dealInitialCards() {
-            setPhase("deal_initial_cards");
+        function dealInitialCards(room: ApiRoom) {
+            setPhase(room.phase!);
+            setStatus(getStatus(room.phase!));
         }
 
-        function dealPlayerCard(username: string, card: ApiCard) {
-            console.log(`dealPlayerCard: for ${username}, card: ${JSON.stringify(card)}`);
+        function dealPlayerCard(player: ApiPlayer, card: ApiCard) {
+            console.log(`dealPlayerCard: for ${player.nickname}, card: ${JSON.stringify(card)}`);
 
-            if (username === nickname) {
+            if (player.nickname === nickname) {
                 setHand(prev => [
                     ...prev,
                     getCard(card)
                 ]);
 
+                setHandValue(player.handValue);
+
                 return;
             }
 
             setOtherPlayers(prev =>
-                prev.map(player =>
-                    player.nickname === username
+                prev.map(p =>
+                    p.nickname === player.nickname
                         ? {
-                            ...player,
+                            ...p,
                             hand: [
-                                ...(player.hand || []),
+                                ...(p.hand || []),
                                 getCard(card)
-                            ]
+                            ],
+                            handValue: player.handValue
                         }
-                        : player
+                        : p
                 )
             );
         }
@@ -207,16 +225,19 @@ export default function Page() {
             }]);
         }
 
-        function dealDealerCard(card: ApiCard) {
+        function dealDealerCard(card: ApiCard, handValue: HandValue) {
             setDealerHand(prev => [
                 ...prev,
                 getCard(card)
             ]);
+
+            setDealerHandValue(handValue);
         }
 
         function restart(room: ApiRoom) {
             console.log(`no bets, restarting game, room: ${JSON.stringify(room)}`);
             setPhase(room.phase!);
+            setStatus(getStatus(room.phase!));
 
             const otherPlayers = room.players
                 .filter(p => p.nickname !== nickname)
@@ -226,7 +247,14 @@ export default function Page() {
         }
 
         function playerTurn(username: string) {
+            if (username === nickname) {
+                setIsMyTurn(true);
+                setStatus(getStatus("players_turn", true));
+                return;
+            }
 
+            setIsMyTurn(false);
+            setStatus(getStatus("players_turn"));
         }
 
         function getPlayerMap(player: ApiPlayer) {
@@ -237,12 +265,28 @@ export default function Page() {
                 bet: player.bet,
                 check: player.check,
                 hand: player.hand?.map(c => getCard(c)),
+                handValue: player.handValue,
                 disconnected: false
             };
         }
 
         function getCard(card: ApiCard) {
             return DECK.find(c => c.rank === card.rank && c.suit === card.suit)!;
+        }
+
+        function getStatus(phase: Phase, isMyTurn: boolean = false) {
+            switch (phase) {
+                case "bet":
+                    return "Place your bets";
+                case "deal_initial_cards":
+                    return "Dealing initial cards";
+                case "players_turn":
+                    return isMyTurn ? "Play your hand" : "Wait for your turn";
+                case "dealers_turn":
+                    return "Waiting for the dealer";
+                case "payout":
+                    return "Payout time";
+            };
         }
 
         socket.on("joined room", joinedRoom);
@@ -331,15 +375,20 @@ export default function Page() {
                     {phase !== "bet" && <div>
                         <div className="relative h-24 w-32">
                             {hand.map((card, index) =>
-                                <div key={`player-${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                <div key={`player-${index}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
                                     <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
                                 </div>
                             )}
                         </div>
                         <div className="text-white italic font-semibold">
-                            21 <span className="text-[#DAA520] not-italic font-light">
-                                Blackjack!
-                            </span>
+                            {handValue && (typeof handValue.value === 'number'
+                                ? <>{handValue.value}</>
+                                : <>{handValue.value.low} / {handValue.value.high}</>)
+                            } {handValue?.status && (
+                                <span className="text-[#DAA520] not-italic font-light">
+                                    {handValue.status}
+                                </span>
+                            )}
                         </div>
                     </div>}
                     {phase === "bet" && <div className="flex gap-1.5">
@@ -518,16 +567,22 @@ export default function Page() {
                         </div>
                         <div className="relative h-24 w-32 mt-6">
                             {dealerHand.map((card, index) =>
-                                <div key={`dealer-${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                <div key={`dealer-${index}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
                                     <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
                                 </div>
                             )}
                         </div>
                     </div>
                     <div className="mt-12 text-white italic font-semibold">
-                        21 <span className="text-[#DAA520] not-italic font-light">
-                            Blackjack!
-                        </span>
+                        {dealerHandValue &&
+                            (typeof dealerHandValue.value === 'number'
+                                ? <>{dealerHandValue.value}</>
+                                : <>{dealerHandValue.value.low} / {dealerHandValue.value.high}</>)
+                        } {dealerHandValue?.status && (
+                            <span className="text-[#DAA520] not-italic font-light">
+                                {dealerHandValue.status}
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -540,11 +595,9 @@ export default function Page() {
                     </div>
                 </div>
             </div>
-            {/* {phase === "bet" && */}
-                <div className="text-white italic font-semibold">
-                    Place your bets
-                </div>
-            {/* } */}
+            <div className="my-4 text-white italic font-semibold">
+                {status && <>{status}</>}
+            </div>
         </div>
     }
 
@@ -563,15 +616,20 @@ export default function Page() {
                         </div>
                         <div className="relative h-24 w-32">
                             {otherPlayer.hand && otherPlayer.hand.map((card, index) =>
-                                <div key={`other-player-1-${card.rank}+${card.suit}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                <div key={`other-player-1-${index}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
                                     <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
                                 </div>
                             )}
                         </div>
                         <div className="text-white italic font-semibold">
-                            22 <span className="text-[#DAA520] not-italic font-light">
-                                Bust!
-                            </span>
+                            {otherPlayer.handValue && (typeof otherPlayer.handValue.value === 'number'
+                                ? <>{otherPlayer.handValue.value}</>
+                                : <>{otherPlayer.handValue.value.low} / {otherPlayer.handValue.value.high}</>)
+                            } {otherPlayer.handValue?.status && (
+                                <span className="text-[#DAA520] not-italic font-light">
+                                    {otherPlayer.handValue.status}
+                                </span>
+                            )}
                         </div>
                     </div>
                 }

@@ -13,7 +13,19 @@ import { auth } from "./auth";
 import { logError, logInfo, logWarning } from './log';
 import { IpApiResponse } from './models/ip-api';
 import { UserData } from './models/user-data';
-import { CHIPS, DAILY_REFILL_VALUE, DECK, NUM_DECKS, MAX_PLAYERS_PER_ROOM, MAX_ROOM_ID, ROOM_NAME_FORMAT, TIMER, TOTAL_CARDS, DECK_PENETRATION, shuffle, Card, DEAL_TIME } from './util';
+import {
+    CHIPS,
+    DAILY_REFILL_VALUE,
+    DECK, NUM_DECKS,
+    MAX_PLAYERS_PER_ROOM,
+    MAX_ROOM_ID, ROOM_NAME_FORMAT,
+    TIMER,
+    TOTAL_CARDS,
+    DECK_PENETRATION,
+    shuffle,
+    Card,
+    DEAL_TIME
+} from './util';
 import prisma from './db';
 import { Room } from './models/room';
 
@@ -101,7 +113,7 @@ io.on('connection', async (socket) => {
                 nickname,
                 socketId: socket.id,
                 countryCode,
-                cash: tempUser.cash
+                cash: tempUser.cash,
             });
         }
 
@@ -113,11 +125,13 @@ io.on('connection', async (socket) => {
     socket.on("disconnect", () => {
         const nickname = socket.data.nickname;
         if (!nickname) {
+            logWarning("disconnect: no nickname");
             return;
         }
 
         const user = users.get(nickname);
         if (!user) {
+            logWarning(`disconnect: no user for nickname '${nickname}'`);
             return;
         }
 
@@ -153,13 +167,13 @@ io.on('connection', async (socket) => {
     socket.on("join room", () => {
         const nickname = socket.data.nickname;
         if (!nickname) {
-            logInfo("join room: no nickname");
+            logWarning("join room: no nickname");
             return;
         }
 
         const user = users.get(nickname);
         if (!user) {
-            logInfo("join room: no user");
+            logWarning("join room: no user");
             return;
         }
 
@@ -360,14 +374,12 @@ async function dealInitialCards(room: Room) {
     }
 
     room.phase = "deal_initial_cards";
-    io.to(room.name).emit("deal initial cards");
+    io.to(room.name).emit("deal initial cards", getRoomMap(room));
 
     let anyPlayerBet = false;
     for (const player of room.players) {
         if (player.bet && player.bet > 0) {
             anyPlayerBet = true;
-
-            await wait(DEAL_TIME);
 
             if (room.shoe!.length === 0) {
                 logError("dealInitialCards: shoe is empty!", getLoggingRoom(room));
@@ -376,7 +388,8 @@ async function dealInitialCards(room: Room) {
 
             const card = dealCard(room.shoe!);
             player.hand = [card];
-            io.to(room.name).emit("deal player card", player.nickname, getCardMap(card));
+            io.to(room.name).emit("deal player card", getUserMap(player), getCardMap(card));
+            await wait(DEAL_TIME);
 
             logInfo(`dealInitialCards: dealt ${getLoggingCard(card)} to ${player.nickname}`);
         }
@@ -387,29 +400,29 @@ async function dealInitialCards(room: Room) {
         return;
     }
 
-    await wait(DEAL_TIME);
     let card = dealCard(room.shoe!);
     room.dealerHand = [card];
     io.to(room.name).emit("deal dealer facedown card");
+    await wait(DEAL_TIME);
 
     logInfo(`dealInitialCards: dealt ${getLoggingCard(card)} facedown to dealer`);
 
     for (const player of room.players) {
         if (player.bet && player.bet > 0) {
-            await wait(DEAL_TIME);
-
             const card = dealCard(room.shoe!);
             player.hand!.push(card);
-            io.to(room.name).emit("deal player card", player.nickname, getCardMap(card));
+            io.to(room.name).emit("deal player card", getUserMap(player), getCardMap(card));
 
             logInfo(`dealInitialCards: dealt ${getLoggingCard(card)} to ${player.nickname}`);
+
+            await wait(DEAL_TIME);
         }
     };
 
-    await wait(DEAL_TIME);
     card = dealCard(room.shoe!);
     room.dealerHand.push(card);
-    io.to(room.name).emit("deal dealer card", card);
+    io.to(room.name).emit("deal dealer card", getCardMap(card), getHandValueDisplay([card]));
+    await wait(DEAL_TIME);
     logInfo(`dealInitialCards: dealt ${getLoggingCard(card)} to dealer`);
 
     startPlayerTurns(room);
@@ -434,6 +447,24 @@ async function startPlayerTurns(room: Room) {
     }, 1000);
 
     io.to(room.name).emit("timer update", TIMER, TIMER);
+
+    // TODO: Player wins automatically if they get a natural blackjack
+    // as seen here https://youtu.be/R0bwgjXCI_U?t=323
+
+    // // Check for bust
+    // if (player.getHandValue() > 21) {
+    //     // Player busted
+    // }
+
+    // // Check for blackjack
+    // if (player.getHandValue() === 21 && player.hand.length === 2) {
+    //     // Natural blackjack!
+    // }
+
+    // // Compare hands
+    // if (player.getHandValue() > dealerValue) {
+    //     // Player wins
+    // }
 }
 
 async function wait(seconds: number) {
@@ -484,6 +515,51 @@ function shouldReshuffle(cardsDealt: number): boolean {
     return cardsDealt >= dealCardsBeforeShuffle;
 }
 
+function getHandValue(hand?: Card[]) {
+    if (!hand || hand.length === 0) return 0;
+
+    let value = 0;
+    let numAces = 0;
+
+    for (const card of hand) {
+        value += card.value[0];
+        if (card.value.length > 1) numAces++;
+    }
+
+    while (numAces > 0 && value + 10 <= 21) {
+        value += 10;
+        numAces--;
+    }
+
+    return value;
+}
+
+function getHandValueDisplay(hand?: Card[]) {
+    if (!hand || hand.length === 0) return { value: 0, status: null };
+
+    let low = 0;
+    let numAces = 0;
+
+    for (const card of hand) {
+        low += card.value[0];
+        if (card.value.length > 1) numAces++;
+    }
+
+    const bestValue = numAces > 0 && low + 10 <= 21 ? low + 10 : low;
+    let status: "Blackjack!" | "Bust!" | null = null;
+    if (bestValue === 21 && hand.length === 2) {
+        status = "Blackjack!";
+    } else if (bestValue > 21) {
+        status = "Bust!";
+    }
+    
+    if (numAces > 0 && low + 10 <= 21) {
+        return { value: { low, high: low + 10 }, status };
+    }
+
+    return { value: low, status };
+}
+
 function getUserMap(user: UserData) {
     return {
         nickname: user.nickname,
@@ -492,6 +568,7 @@ function getUserMap(user: UserData) {
         bet: user.bet,
         check: user.check,
         hand: user.hand?.map(c => getCardMap(c)),
+        handValue: getHandValueDisplay(user.hand)
     }
 }
 
@@ -502,7 +579,9 @@ function getRoomMap(room: Room) {
         timeLeft: room.timeLeft,
         phase: room.phase,
         dealerHand: room.dealerHand?.map(c => getCardMap(c)),
-        currentPlayerIndex: room.currentPlayerIndex,
+        currentPlayer: room.currentPlayerIndex ?
+            getUserMap(room.players[room.currentPlayerIndex]) :
+            undefined,
     };
 }
 

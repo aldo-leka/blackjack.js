@@ -1,12 +1,14 @@
 import { Card } from "../util";
 import { UserData } from "./user-data";
 
+type Phase = "bet" | "deal_initial_cards" | "players_turn" | "dealers_turn" | "payout";
+
 export interface Room {
     name: string;
     players: UserData[];
     timer?: NodeJS.Timeout;
     timeLeft?: number;
-    phase?: "bet" | "deal_initial_cards" | "players_play" | "dealer_plays" | "payout";
+    phase?: Phase;
     shoe?: Card[];
     dealerHand?: Card[];
     currentPlayerIndex?: number;
