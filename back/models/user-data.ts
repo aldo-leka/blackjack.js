@@ -9,6 +9,7 @@ export interface UserData {
     roomName?: string;
     cash?: number;
     bet?: number;
+    betBefore?: number;
     check?: boolean;
     hand?: Card[];
 }

@@ -2,7 +2,7 @@
 
 import Chip from "@/components/Chip";
 import { socket } from "@/lib/socket";
-import { Check, CirclePlus, Hand, Repeat, Split } from "lucide-react";
+import { Check, Hand, Plus, Repeat, Split, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
 import { Card, CHIPS, DECK, HandValue } from "@/lib/util";
@@ -13,6 +13,7 @@ interface Player {
     countryCode: string;
     worth: number;
     bet?: number;
+    betBefore?: number;
     check?: boolean;
     hand?: Card[];
     handValue?: HandValue;
@@ -24,6 +25,7 @@ interface ApiPlayer {
     countryCode: string;
     cash?: number;
     bet?: number;
+    betBefore?: number;
     check?: boolean;
     hand?: ApiCard[]
     handValue: HandValue;
@@ -49,24 +51,8 @@ export default function Page() {
     const { nickname, isHandshakeComplete } = useNickname();
     const [worth, setWorth] = useState<number | undefined>();
     const [bet, setBet] = useState<number | undefined>();
+    const [betBefore, setBetBefore] = useState<number | undefined>();
     const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
-    // const [otherPlayers, setOtherPlayers] = useState<Player[]>([
-    //     {
-    //         nickname: "FartyPlayer",
-    //         countryCode: "somewhere",
-    //         worth: 120,
-    //         bet: 10,
-    //         check: true,
-    //         disconnected: false,
-    //     },
-    //     {
-    //         nickname: "Partypooper",
-    //         countryCode: "somewhere",
-    //         worth: 100,
-    //         bet: 80,
-    //         disconnected: true,
-    //     }
-    // ]);
     const [timeLeft, setTimeLeft] = useState<number | undefined>();
     const [totalTime, setTotalTime] = useState<number | undefined>();
     const [phase, setPhase] = useState<Phase | undefined>();
@@ -163,6 +149,7 @@ export default function Page() {
 
             setWorth(me.cash);
             setBet(me.bet);
+            setBetBefore(me.betBefore);
             setOtherPlayers(otherPlayers);
             setPhase(room.phase!);
 
@@ -196,6 +183,7 @@ export default function Page() {
                 ]);
 
                 setHandValue(player.handValue);
+                setBetBefore(player.betBefore);
 
                 return;
             }
@@ -235,7 +223,7 @@ export default function Page() {
         }
 
         function restart(room: ApiRoom) {
-            console.log(`no bets, restarting game, room: ${JSON.stringify(room)}`);
+            console.log(`restarting game, room: ${JSON.stringify(room)}`);
             setPhase(room.phase!);
             setStatus(getStatus(room.phase!));
 
@@ -244,6 +232,18 @@ export default function Page() {
                 .map(p => getPlayerMap(p));
 
             setOtherPlayers(otherPlayers);
+
+            setBet(undefined);
+            setHand([]);
+            setHandValue(undefined);
+            setDealerHand([]);
+            setDealerHandValue(undefined);
+            setIsMyTurn(false);
+        }
+
+        function playersTurn(room: ApiRoom) {
+            setPhase(room.phase!);
+            setStatus(getStatus(room.phase!));
         }
 
         function playerTurn(username: string) {
@@ -257,12 +257,43 @@ export default function Page() {
             setStatus(getStatus("players_turn"));
         }
 
+        function dealerPlays(room: ApiRoom) {
+            setPhase(room.phase!);
+            setStatus(getStatus(room.phase!));
+        }
+
+        function revealDealerCard(card: ApiCard, handValue: HandValue) {
+            setDealerHand(prev => [
+                getCard(card),
+                ...prev.slice(1)
+            ]);
+
+            setDealerHandValue(handValue);
+        }
+
+        function playerResult(playerNickname: string, result: "win" | "lose" | "push" | "blackjack", winAmount: number, newCash: number) {
+            console.log(`playerResult: ${playerNickname} ${result} with amount ${winAmount}, new cash: ${newCash}`);
+
+            if (playerNickname === nickname) {
+                setWorth(newCash);
+            } else {
+                setOtherPlayers(prev =>
+                    prev.map(p =>
+                        p.nickname === playerNickname
+                            ? { ...p, worth: newCash }
+                            : p
+                    )
+                );
+            }
+        }
+
         function getPlayerMap(player: ApiPlayer) {
             return {
                 nickname: player.nickname,
                 countryCode: player.countryCode,
                 worth: player.cash!,
                 bet: player.bet,
+                betBefore: player.betBefore,
                 check: player.check,
                 hand: player.hand?.map(c => getCard(c)),
                 handValue: player.handValue,
@@ -302,7 +333,11 @@ export default function Page() {
         socket.on("deal dealer facedown card", dealDealerFacedownCard);
         socket.on("deal dealer card", dealDealerCard);
         socket.on("restart", restart);
+        socket.on("players turn", playersTurn);
         socket.on("player turn", playerTurn);
+        socket.on("dealer plays", dealerPlays);
+        socket.on("reveal dealer card", revealDealerCard);
+        socket.on("player result", playerResult);
 
         return () => {
             socket.off("joined room", joinedRoom);
@@ -318,7 +353,11 @@ export default function Page() {
             socket.off("deal dealer facedown card", dealDealerFacedownCard);
             socket.off("deal dealer card", dealDealerCard);
             socket.off("restart", restart);
+            socket.off("players turn", playersTurn);
             socket.off("player turn", playerTurn);
+            socket.off("dealer plays", dealerPlays);
+            socket.off("reveal dealer card", revealDealerCard);
+            socket.off("player result", playerResult);
         }
     }, [isHandshakeComplete]);
 
@@ -360,7 +399,7 @@ export default function Page() {
             socket.emit("change bet", index, "remove");
         }
     }
-
+    
     return (
         <div className="grid grid-rows-4 grid-cols-2 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
             <div id="dealer-zone" className="col-span-2">
@@ -375,7 +414,7 @@ export default function Page() {
                     {phase !== "bet" && <div>
                         <div className="relative h-24 w-32">
                             {hand.map((card, index) =>
-                                <div key={`player-${index}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                <div key={`player-${index}`} className={`absolute left-${index * 4}`}>
                                     <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
                                 </div>
                             )}
@@ -391,7 +430,7 @@ export default function Page() {
                             )}
                         </div>
                     </div>}
-                    {phase === "bet" && <div className="flex gap-1.5">
+                    {phase === "bet" && <div className="flex gap-2.5">
                         <div className="flex flex-col gap-2">
                             <Chip color="white" amount={CHIPS[0]} />
                             <button
@@ -462,7 +501,7 @@ export default function Page() {
 
                 <div className="flex flex-col items-center gap-2 justify-self-start">
                     <div className="relative size-36">
-                        {phase === "bet" && totalTime && timeLeft ? (
+                        {((phase === "bet" && totalTime && timeLeft) || (phase === "players_turn" && isMyTurn && totalTime && timeLeft)) ? (
                             <svg className="absolute inset-0 -rotate-90" viewBox="0 0 144 144">
                                 <circle
                                     cx="72"
@@ -492,37 +531,38 @@ export default function Page() {
                         </div>
                     </div>
                     <div className="flex gap-2 justify-between">
-                        {phase !== "bet" &&
-                            <>
+                        {phase === "players_turn" && isMyTurn &&
+                            <div className="grid grid-cols-2 gap-2">
                                 <button
-                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
+                                    onClick={() => socket.emit("hit")}
+                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]"
+                                    title="Hit - Draw another card"
                                 >
-                                    <CirclePlus size={16} />
+                                    <Plus />
                                 </button>
                                 <button
-                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
+                                    onClick={() => socket.emit("stand")}
+                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]"
+                                    title="Stand - Keep current hand"
                                 >
-                                    <Hand size={16} />
+                                    <Hand />
                                 </button>
                                 <button
-                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
+                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]"
+                                    title="Stand - Keep current hand"
                                 >
-                                    <Split size={16} />
+                                    <Split />
                                 </button>
-                            </>
+                                <button
+                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]"
+                                    title="Stand - Keep current hand"
+                                >
+                                    <Split />
+                                </button>
+                            </div>
                         }
                         {phase === "bet" &&
-                            <>
-                                <button
-                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
-                                >
-                                    <Repeat size={16} />
-                                </button>
-                                <button
-                                    className="px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
-                                >
-                                    2X
-                                </button>
+                            <div className="grid grid-cols-2 gap-2">
                                 <button
                                     onClick={() => {
                                         if (bet && bet > 0) {
@@ -533,7 +573,42 @@ export default function Page() {
                                 >
                                     <Check size={16} />
                                 </button>
-                            </>
+                                <button
+                                    onClick={() => {
+                                        if (bet && bet > 0) {
+                                            setBet(0);
+                                            socket.emit("remove bet");
+                                        }
+                                    }}
+                                    className={`${!bet || bet === 0 ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                >
+                                    <X size={16} />
+                                </button>
+                                {worth && betBefore && worth >= betBefore &&
+                                    <button
+                                        onClick={() => {
+                                            if (worth && betBefore && worth >= betBefore) {
+                                                setBet(betBefore);
+                                                socket.emit("repeat bet");
+                                            }
+                                        }}
+                                        className={`px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                    >
+                                        <Repeat size={16} />
+                                    </button>
+                                }
+                                {worth && betBefore && worth >= betBefore * 2 && <button
+                                    onClick={() => {
+                                        if (worth && betBefore && worth >= betBefore * 2) {
+                                            setBet(betBefore * 2);
+                                            socket.emit("double bet");
+                                        }
+                                    }}
+                                    className={`px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                >
+                                    2X
+                                </button>}
+                            </div>
                         }
                     </div>
                 </div>
@@ -567,7 +642,7 @@ export default function Page() {
                         </div>
                         <div className="relative h-24 w-32 mt-6">
                             {dealerHand.map((card, index) =>
-                                <div key={`dealer-${index}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                <div key={`dealer-${index}`} className={`absolute left-${index * 4}`}>
                                     <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
                                 </div>
                             )}
@@ -616,7 +691,7 @@ export default function Page() {
                         </div>
                         <div className="relative h-24 w-32">
                             {otherPlayer.hand && otherPlayer.hand.map((card, index) =>
-                                <div key={`other-player-1-${index}`} className={`absolute ${index > 0 ? "left-4" : ""}`}>
+                                <div key={`other-player-1-${index}`} className={`absolute left-${index * 4}`}>
                                     <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
                                 </div>
                             )}

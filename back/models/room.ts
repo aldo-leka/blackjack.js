@@ -12,4 +12,6 @@ export interface Room {
     shoe?: Card[];
     dealerHand?: Card[];
     currentPlayerIndex?: number;
+    cardsDealt?: number;
+    needsReshuffle?: boolean;
 }
