@@ -47,6 +47,11 @@ interface ApiCard {
     suit: string;
 }
 
+// TODO If dealer has blackjack, reveal immediately?
+    // if dealer's face up card is a 10, J, Q, K, Ace he checks his
+    // face down card, and reveals a blackjack instantly.
+    // players don't play their round in that case.
+    // only players who also have blackjack push, otherwise lose.
 export default function Page() {
     const { nickname, isHandshakeComplete } = useNickname();
     const [worth, setWorth] = useState<number>();
@@ -434,7 +439,7 @@ export default function Page() {
                             )}
                         </div>
                     </div>}
-                    {phase === "bet" && <div className="flex gap-2">
+                    {phase === "bet" && <div className="flex gap-0.5">
                         <div className="flex flex-col gap-2 items-center">
                             <Chip color="white" amount={CHIPS[0]} size={30} />
                             <button
@@ -539,7 +544,7 @@ export default function Page() {
                             <div className="grid grid-cols-2 gap-2">
                                 <button
                                     onClick={() => socket.emit("hit")}
-                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]"
+                                    className={`${stand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]`}
                                     title="Hit - Draw another card"
                                 >
                                     <Plus size={25} />
@@ -575,7 +580,7 @@ export default function Page() {
                                 <button
                                     onClick={() => {
                                         if (bet && bet > 0 && !check) {
-                                            setCheck(check);
+                                            setCheck(true);
                                             socket.emit("check");
                                         }
                                     }}
@@ -687,8 +692,6 @@ export default function Page() {
             </div>
         </div>
     }
-
-    // TODO If dealer has blackjack, reveal sooner? see pokerstars.
 
     function getOtherPlayerComponent(playerIndex: number) {
         if (otherPlayers.length > playerIndex) {
