@@ -414,7 +414,7 @@ export default function Page() {
                     {phase !== "bet" && <div>
                         <div className="relative h-24 w-32">
                             {hand.map((card, index) =>
-                                <div key={`player-${index}`} className={`absolute left-${index * 4}`}>
+                                <div key={`player-${index}`} className="absolute" style={{ left: `${index * 16}px` }}>
                                     <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
                                 </div>
                             )}
@@ -642,7 +642,7 @@ export default function Page() {
                         </div>
                         <div className="relative h-24 w-32 mt-6">
                             {dealerHand.map((card, index) =>
-                                <div key={`dealer-${index}`} className={`absolute left-${index * 4}`}>
+                                <div key={`dealer-${index}`} className="absolute" style={{ left: `${index * 16}px` }}>
                                     <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
                                 </div>
                             )}
@@ -691,7 +691,7 @@ export default function Page() {
                         </div>
                         <div className="relative h-24 w-32">
                             {otherPlayer.hand && otherPlayer.hand.map((card, index) =>
-                                <div key={`other-player-1-${index}`} className={`absolute left-${index * 4}`}>
+                                <div key={`other-player-1-${index}`} className="absolute" style={{ left: `${index * 16}px` }}>
                                     <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
                                 </div>
                             )}
