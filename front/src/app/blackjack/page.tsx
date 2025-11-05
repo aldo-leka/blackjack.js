@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
 import { Card, CHIPS, DECK, HandValue } from "@/lib/util";
 import Image from "next/image";
+import { motion, AnimatePresence } from "motion/react";
 
 interface Player {
     nickname: string;
@@ -72,6 +73,10 @@ export default function Page() {
     const [handValue, setHandValue] = useState<HandValue>();
     const [check, setCheck] = useState<boolean>();
     const [stand, setStand] = useState<boolean>();
+    const [isRevealingDealerCard, setIsRevealingDealerCard] = useState(false);
+    const [currentPlayerNickname, setCurrentPlayerNickname] = useState<string>();
+    const [myResult, setMyResult] = useState<"win" | "lose" | "push" | "blackjack">();
+    const [myWinAmount, setMyWinAmount] = useState<number>();
 
     useEffect(() => {
         if (!isHandshakeComplete) {
@@ -261,6 +266,8 @@ export default function Page() {
             setIsMyTurn(false);
             setCheck(false);
             setStand(false);
+            setMyResult(undefined);
+            setMyWinAmount(undefined);
         }
 
         function playersTurn(room: ApiRoom) {
@@ -273,6 +280,7 @@ export default function Page() {
             setIsMyTurn(isMyTurn);
             setStatus(getStatus("players_turn", isMyTurn));
             setStand(player.stand);
+            setCurrentPlayerNickname(player.nickname);
         }
 
         function dealerPlays(room: ApiRoom) {
@@ -281,12 +289,22 @@ export default function Page() {
         }
 
         function revealDealerCard(card: ApiCard, handValue: HandValue) {
-            setDealerHand(prev => [
-                getCard(card),
-                ...prev.slice(1)
-            ]);
+            // Trigger reveal animation
+            setIsRevealingDealerCard(true);
 
-            setDealerHandValue(handValue);
+            // Update card after slight delay to let other cards move away
+            setTimeout(() => {
+                setDealerHand(prev => [
+                    getCard(card),
+                    ...prev.slice(1)
+                ]);
+                setDealerHandValue(handValue);
+            }, 100);
+
+            // Reset reveal state after animation completes
+            setTimeout(() => {
+                setIsRevealingDealerCard(false);
+            }, 1000);
         }
 
         function playerResult(playerNickname: string, result: "win" | "lose" | "push" | "blackjack", winAmount: number, newCash: number) {
@@ -294,6 +312,14 @@ export default function Page() {
 
             if (playerNickname === nickname) {
                 setWorth(newCash);
+                setMyResult(result);
+                setMyWinAmount(winAmount);
+
+                // Clear result after animation
+                setTimeout(() => {
+                    setMyResult(undefined);
+                    setMyWinAmount(undefined);
+                }, 3000);
             } else {
                 setOtherPlayers(prev =>
                     prev.map(p =>
@@ -436,176 +462,350 @@ export default function Page() {
                     </h2>
                     {phase !== "bet" && <div>
                         <div className="relative h-24 w-32">
-                            {hand.map((card, index) =>
-                                <div key={`player-${index}`} className="absolute" style={{ left: `${index * 16}px` }}>
-                                    <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
-                                </div>
-                            )}
+                            <AnimatePresence mode="popLayout">
+                                {hand.map((card, index) =>
+                                    <motion.div
+                                        key={`player-${card.rank}-${card.suit}-${index}`}
+                                        className="absolute"
+                                        style={{ left: `${index * 16}px` }}
+                                        initial={{
+                                            opacity: 0,
+                                            y: -200,
+                                            x: 100,
+                                            scale: 0.8,
+                                            rotate: -10
+                                        }}
+                                        animate={{
+                                            opacity: 1,
+                                            y: 0,
+                                            x: 0,
+                                            scale: 1,
+                                            rotate: 0
+                                        }}
+                                        exit={{
+                                            opacity: 0,
+                                            scale: 0.8
+                                        }}
+                                        transition={{
+                                            type: "spring",
+                                            stiffness: 200,
+                                            damping: 20,
+                                            delay: index * 0.2
+                                        }}
+                                    >
+                                        <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </div>
-                        <div className="text-white italic font-semibold">
-                            {handValue && (typeof handValue.value === 'number'
-                                ? <>{handValue.value}</>
-                                : <>{handValue.value.low} / {handValue.value.high}</>)
-                            } {handValue?.status && (
-                                <span className="text-[#DAA520] not-italic font-light">
-                                    {handValue.status}
-                                </span>
+                        <AnimatePresence mode="wait">
+                            {handValue && (
+                                <motion.div
+                                    key={typeof handValue.value === 'number' ? handValue.value : `${handValue.value.low}-${handValue.value.high}`}
+                                    className="text-white italic font-semibold"
+                                    initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.5, y: 10 }}
+                                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                >
+                                    {typeof handValue.value === 'number'
+                                        ? <>{handValue.value}</>
+                                        : <>{handValue.value.low} / {handValue.value.high}</>
+                                    } {handValue?.status && (
+                                        <span className="text-[#DAA520] not-italic font-light">
+                                            {handValue.status}
+                                        </span>
+                                    )}
+                                </motion.div>
                             )}
-                        </div>
+                        </AnimatePresence>
                     </div>}
                     {phase === "bet" && <div className="flex gap-0.5">
                         <div className="flex flex-col gap-2 items-center">
                             <Chip color="white" amount={CHIPS[0]} size={30} />
-                            <button
+                            <motion.button
                                 onClick={() => addBet(0)}
-                                className={`${CHIPS[0] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${CHIPS[0] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={CHIPS[0] <= cash ? { scale: 1.1 } : {}}
+                                whileTap={CHIPS[0] <= cash ? { scale: 0.95 } : {}}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
                                 +
-                            </button>
-                            <button
+                            </motion.button>
+                            <motion.button
                                 onClick={() => removeBet(0)}
-                                className={`${!bet || (bet < CHIPS[0]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${!bet || (bet < CHIPS[0]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={bet && bet >= CHIPS[0] ? { scale: 1.1 } : {}}
+                                whileTap={bet && bet >= CHIPS[0] ? { scale: 0.95 } : {}}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
                                 -
-                            </button>
+                            </motion.button>
                         </div>
                         <div className="flex flex-col gap-2 items-center">
                             <Chip color="red" amount={CHIPS[1]} size={30} />
-                            <button
+                            <motion.button
                                 onClick={() => addBet(1)}
-                                className={`${CHIPS[1] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${CHIPS[1] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={CHIPS[1] <= cash ? { scale: 1.1 } : {}}
+                                whileTap={CHIPS[1] <= cash ? { scale: 0.95 } : {}}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
                                 +
-                            </button>
-                            <button
+                            </motion.button>
+                            <motion.button
                                 onClick={() => removeBet(1)}
-                                className={`${!bet || (bet < CHIPS[1]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${!bet || (bet < CHIPS[1]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={bet && bet >= CHIPS[1] ? { scale: 1.1 } : {}}
+                                whileTap={bet && bet >= CHIPS[1] ? { scale: 0.95 } : {}}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
                                 -
-                            </button>
+                            </motion.button>
                         </div>
                         <div className="flex flex-col gap-2 items-center">
                             <Chip color="green" amount={CHIPS[2]} size={30} />
-                            <button
+                            <motion.button
                                 onClick={() => addBet(2)}
-                                className={`${CHIPS[2] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${CHIPS[2] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={CHIPS[2] <= cash ? { scale: 1.1 } : {}}
+                                whileTap={CHIPS[2] <= cash ? { scale: 0.95 } : {}}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
                                 +
-                            </button>
-                            <button
+                            </motion.button>
+                            <motion.button
                                 onClick={() => removeBet(2)}
-                                className={`${!bet || (bet < CHIPS[2]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${!bet || (bet < CHIPS[2]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={bet && bet >= CHIPS[2] ? { scale: 1.1 } : {}}
+                                whileTap={bet && bet >= CHIPS[2] ? { scale: 0.95 } : {}}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
                                 -
-                            </button>
+                            </motion.button>
                         </div>
                         <div className="flex flex-col gap-2 items-center">
                             <Chip color="black" amount={CHIPS[3]} size={30} />
-                            <button
+                            <motion.button
                                 onClick={() => addBet(3)}
-                                className={`${CHIPS[3] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${CHIPS[3] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={CHIPS[3] <= cash ? { scale: 1.1 } : {}}
+                                whileTap={CHIPS[3] <= cash ? { scale: 0.95 } : {}}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
                                 +
-                            </button>
-                            <button
+                            </motion.button>
+                            <motion.button
                                 onClick={() => removeBet(3)}
-                                className={`${!bet || (bet < CHIPS[3]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${!bet || (bet < CHIPS[3]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={bet && bet >= CHIPS[3] ? { scale: 1.1 } : {}}
+                                whileTap={bet && bet >= CHIPS[3] ? { scale: 0.95 } : {}}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
                                 -
-                            </button>
+                            </motion.button>
                         </div>
                         <div className="flex flex-col gap-2 items-center">
                             <Chip color="blue" amount={CHIPS[4]} size={30} />
-                            <button
+                            <motion.button
                                 onClick={() => addBet(4)}
-                                className={`${CHIPS[4] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${CHIPS[4] > cash ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={CHIPS[4] <= cash ? { scale: 1.1 } : {}}
+                                whileTap={CHIPS[4] <= cash ? { scale: 0.95 } : {}}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
                                 +
-                            </button>
-                            <button
+                            </motion.button>
+                            <motion.button
                                 onClick={() => removeBet(4)}
-                                className={`${!bet || (bet < CHIPS[4]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}>
+                                className={`${!bet || (bet < CHIPS[4]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={bet && bet >= CHIPS[4] ? { scale: 1.1 } : {}}
+                                whileTap={bet && bet >= CHIPS[4] ? { scale: 0.95 } : {}}
+                                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            >
                                 -
-                            </button>
+                            </motion.button>
                         </div>
                     </div>}
                 </div>
 
                 <div className="flex flex-col items-center gap-2 justify-self-start">
                     <div className="relative size-42">
-                        {((phase === "bet" && totalTime && timeLeft) || (phase === "players_turn" && isMyTurn && totalTime && timeLeft)) ? (
-                            <svg className="absolute inset-0 -rotate-90" viewBox="0 0 144 144">
-                                <circle
-                                    cx="72"
-                                    cy="72"
-                                    r="70"
-                                    fill="none"
-                                    stroke="#DAA520"
-                                    strokeWidth="4"
-                                    strokeDasharray={`${2 * Math.PI * 70}`}
-                                    strokeDashoffset={`${2 * Math.PI * 70 * (timeLeft / totalTime)}`}
-                                    className="transition-all duration-1000 ease-linear"
-                                />
-                            </svg>
-                        ) : ''}
+                        <AnimatePresence>
+                            {((phase === "bet" && totalTime && timeLeft && !check) || (phase === "players_turn" && isMyTurn && totalTime && timeLeft)) && (
+                                <motion.svg
+                                    className="absolute inset-0 -rotate-90"
+                                    viewBox="0 0 144 144"
+                                    initial={{ opacity: 0, scale: 0.8 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.8 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    <circle
+                                        cx="72"
+                                        cy="72"
+                                        r="70"
+                                        fill="none"
+                                        stroke="#DAA520"
+                                        strokeWidth="4"
+                                        strokeDasharray={`${2 * Math.PI * 70}`}
+                                        strokeDashoffset={`${2 * Math.PI * 70 * (timeLeft / totalTime)}`}
+                                        className="transition-all duration-1000 ease-linear"
+                                    />
+                                </motion.svg>
+                            )}
+                        </AnimatePresence>
 
-                        <div className="grid grid-rows-3 bg-[#daa52080] rounded-full size-42 border-4 border-transparent">
-                            <div className="flex justify-center items-end text-white italic font-semibold pb-1">
-                                {bet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{bet}</span> : ''}
+                        <motion.div
+                            className="grid grid-rows-3 bg-[#daa52080] rounded-full size-42 border-4 border-transparent"
+                            animate={phase === "bet" ? {
+                                scale: [1, 1.05, 1],
+                                borderColor: ["transparent", "#DAA520", "transparent"]
+                            } : {}}
+                            transition={{
+                                duration: 2,
+                                repeat: phase === "bet" ? Number.POSITIVE_INFINITY : 0,
+                                ease: "easeInOut"
+                            }}
+                        >
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={bet}
+                                    className="flex justify-center items-end text-white italic font-semibold pb-1"
+                                    initial={{ opacity: 0, y: -10, scale: 0.8 }}
+                                    animate={{ opacity: bet ? 1 : 0, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 10, scale: 0.8 }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 25, duration: 0.2 }}
+                                >
+                                    {bet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{bet}</span> : ''}
+                                </motion.div>
+                            </AnimatePresence>
+                            <div className="flex justify-center items-center relative">
+                                <AnimatePresence>
+                                    {betChips[0] > 0 && (
+                                        <motion.div
+                                            key="white-chip"
+                                            initial={{ scale: 0, y: -50, opacity: 0 }}
+                                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                                            exit={{ scale: 0, opacity: 0 }}
+                                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                        >
+                                            <Chip color="white" amount={betChips[0]} size={30} />
+                                        </motion.div>
+                                    )}
+                                    {betChips[1] > 0 && (
+                                        <motion.div
+                                            key="red-chip"
+                                            initial={{ scale: 0, y: -50, opacity: 0 }}
+                                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                                            exit={{ scale: 0, opacity: 0 }}
+                                            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.05 }}
+                                        >
+                                            <Chip color="red" amount={betChips[1]} size={30} />
+                                        </motion.div>
+                                    )}
+                                    {betChips[2] > 0 && (
+                                        <motion.div
+                                            key="green-chip"
+                                            initial={{ scale: 0, y: -50, opacity: 0 }}
+                                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                                            exit={{ scale: 0, opacity: 0 }}
+                                            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+                                        >
+                                            <Chip color="green" amount={betChips[2]} size={30} />
+                                        </motion.div>
+                                    )}
+                                    {betChips[3] > 0 && (
+                                        <motion.div
+                                            key="black-chip"
+                                            initial={{ scale: 0, y: -50, opacity: 0 }}
+                                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                                            exit={{ scale: 0, opacity: 0 }}
+                                            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.15 }}
+                                        >
+                                            <Chip color="black" amount={betChips[3]} size={30} />
+                                        </motion.div>
+                                    )}
+                                    {betChips[4] > 0 && (
+                                        <motion.div
+                                            key="blue-chip"
+                                            initial={{ scale: 0, y: -50, opacity: 0 }}
+                                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                                            exit={{ scale: 0, opacity: 0 }}
+                                            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.2 }}
+                                        >
+                                            <Chip color="blue" amount={betChips[4]} size={30} />
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
-                            <div className="flex justify-center items-center">
-                                <Chip color="white" amount={betChips[0]} size={30} />
-                                <Chip color="red" amount={betChips[1]} size={30} />
-                                <Chip color="green" amount={betChips[2]} size={30} />
-                                <Chip color="black" amount={betChips[3]} size={30} />
-                                <Chip color="blue" amount={betChips[4]} size={30} />
-                            </div>
-                        </div>
+                        </motion.div>
                     </div>
                     <div className="flex gap-2 justify-between">
                         {phase === "players_turn" && isMyTurn &&
                             <div className="grid grid-cols-2 gap-2">
-                                <button
+                                <motion.button
                                     onClick={() => {
                                         if (!stand && !bustedOrBlackjack) {
                                             socket.emit("hit");
                                         }
                                     }}
-                                    className={`${stand || bustedOrBlackjack ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]`}
+                                    className={`${stand || bustedOrBlackjack ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Hit - Draw another card"
+                                    whileHover={!stand && !bustedOrBlackjack ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
+                                    whileTap={!stand && !bustedOrBlackjack ? { scale: 0.95 } : {}}
+                                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                 >
                                     <Plus size={25} />
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
                                     onClick={() => {
                                         if (!stand && !bustedOrBlackjack) {
                                             setStand(true);
                                             socket.emit("stand");
                                         }
                                     }}
-                                    className={`${stand || bustedOrBlackjack ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]`}
+                                    className={`${stand || bustedOrBlackjack ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Stand - Keep current hand"
+                                    whileHover={!stand && !bustedOrBlackjack ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
+                                    whileTap={!stand && !bustedOrBlackjack ? { scale: 0.95 } : {}}
+                                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                 >
                                     <Hand size={25} />
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
                                     onClick={() => {
                                         if (!stand) {
 
                                         }
                                     }}
-                                    className={`${stand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]`}
+                                    className={`${stand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Split — Split into two hands"
+                                    whileHover={!stand ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
+                                    whileTap={!stand ? { scale: 0.95 } : {}}
+                                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                 >
                                     <Split size={25} />
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
                                     onClick={() => {
                                         if (!stand) {
 
                                         }
                                     }}
-                                    className={`${stand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]`}
+                                    className={`${stand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Double — Double bet, take one card"
+                                    whileHover={!stand ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
+                                    whileTap={!stand ? { scale: 0.95 } : {}}
+                                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                 >
                                     2X
-                                </button>
+                                </motion.button>
                             </div>
                         }
                         {phase === "bet" &&
                             <div className="grid grid-cols-2 gap-2">
-                                <button
+                                <motion.button
                                     onClick={() => {
                                         if (bet && bet > 0 && !check) {
                                             setCheck(true);
@@ -614,10 +814,13 @@ export default function Page() {
                                     }}
                                     className={`${!bet || bet === 0 || check ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Ready — End turn now"
+                                    whileHover={bet && bet > 0 && !check ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
+                                    whileTap={bet && bet > 0 && !check ? { scale: 0.95 } : {}}
+                                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                 >
                                     <Check size={25} />
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
                                     onClick={() => {
                                         if (bet && bet > 0 && !check) {
                                             setBet(0);
@@ -626,11 +829,14 @@ export default function Page() {
                                     }}
                                     className={`${!bet || bet === 0 || check ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Clear Bet — Remove your bet"
+                                    whileHover={bet && bet > 0 && !check ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
+                                    whileTap={bet && bet > 0 && !check ? { scale: 0.95 } : {}}
+                                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                 >
                                     <X size={25} />
-                                </button>
+                                </motion.button>
                                 {worth && betBefore && worth >= betBefore ?
-                                    <button
+                                    <motion.button
                                         onClick={() => {
                                             if (worth && betBefore && worth >= betBefore && !check) {
                                                 setBet(betBefore);
@@ -639,12 +845,15 @@ export default function Page() {
                                         }}
                                         className={`${check ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                         title="Rebet — Repeat last bet"
+                                        whileHover={!check ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
+                                        whileTap={!check ? { scale: 0.95 } : {}}
+                                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                     >
                                         <Repeat size={25} />
-                                    </button> : <></>
+                                    </motion.button> : <></>
                                 }
                                 {worth && betBefore && worth >= betBefore * 2 ?
-                                    <button
+                                    <motion.button
                                         onClick={() => {
                                             if (worth && betBefore && worth >= betBefore * 2 && !check) {
                                                 setBet(betBefore * 2);
@@ -653,9 +862,12 @@ export default function Page() {
                                         }}
                                         className={`${check ? "opacity-50" : ""} px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                         title="Double Bet — Double your bet"
+                                        whileHover={!check ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
+                                        whileTap={!check ? { scale: 0.95 } : {}}
+                                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                     >
                                         2X
-                                    </button> : <></>
+                                    </motion.button> : <></>
                                 }
                             </div>
                         }
@@ -665,11 +877,15 @@ export default function Page() {
 
             <div id="other-players" className="col-span-2 grid grid-cols-2 gap-2 px-8">
                 <div className="justify-self-end">
-                    {getOtherPlayerComponent(0)}
+                    <AnimatePresence mode="wait">
+                        {getOtherPlayerComponent(0)}
+                    </AnimatePresence>
                 </div>
 
                 <div className="justify-self-start">
-                    {getOtherPlayerComponent(1)}
+                    <AnimatePresence mode="wait">
+                        {getOtherPlayerComponent(1)}
+                    </AnimatePresence>
                 </div>
             </div>
 
@@ -684,30 +900,126 @@ export default function Page() {
             <div className="flex w-full justify-center">
                 <div className="w-1/5"></div>
 
-                <div className="flex flex-col items-center">
-                    <div className="flex flex-col items-center justify-center size-48 -mt-24 bg-[#daa52080] rounded-full">
+                <div className="flex flex-col items-center min-h-[150px]">
+                    <motion.div
+                        className="flex flex-col items-center justify-center size-48 -mt-24 bg-[#daa52080] rounded-full"
+                        animate={phase === "dealers_turn" ? {
+                            scale: [1, 1.03, 1],
+                            boxShadow: [
+                                "0 0 0px rgba(218, 165, 32, 0)",
+                                "0 0 20px rgba(218, 165, 32, 0.5)",
+                                "0 0 0px rgba(218, 165, 32, 0)"
+                            ]
+                        } : {}}
+                        transition={{
+                            duration: 2,
+                            repeat: phase === "dealers_turn" ? Number.POSITIVE_INFINITY : 0,
+                            ease: "easeInOut"
+                        }}
+                    >
                         <div className="mt-24 text-white font-semibold italic">
                             Dealer
                         </div>
-                        <div className="relative h-24 w-32 mt-6">
-                            {dealerHand.map((card, index) =>
-                                <div key={`dealer-${index}`} className="absolute" style={{ left: `${index * 16}px` }}>
-                                    <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
-                                </div>
-                            )}
+                        <div className="relative h-24 w-32 mt-6" style={{ perspective: '1000px' }}>
+                            {dealerHand.map((card, index) => {
+                                const isFaceDown = card.rank === "facedown";
+                                const isFirstCard = index === 0;
+
+                                // Calculate position offset when revealing
+                                const baseLeft = index * 16;
+                                const spreadOffset = isRevealingDealerCard && !isFirstCard ? 30 : 0;
+                                const leftPosition = baseLeft + spreadOffset;
+
+                                return (
+                                    <motion.div
+                                        key={`dealer-position-${index}`}
+                                        className="absolute"
+                                        style={{
+                                            transformStyle: 'preserve-3d',
+                                            zIndex: isFirstCard && isRevealingDealerCard ? 10 : index
+                                        }}
+                                        initial={{
+                                            opacity: 0,
+                                            y: -100,
+                                            scale: 0.8,
+                                            rotate: 10,
+                                            left: `${baseLeft}px`
+                                        }}
+                                        animate={{
+                                            opacity: 1,
+                                            y: 0,
+                                            scale: 1,
+                                            rotate: 0,
+                                            left: `${leftPosition}px`
+                                        }}
+                                        transition={{
+                                            type: "spring",
+                                            stiffness: 200,
+                                            damping: 20,
+                                            delay: index * 0.2,
+                                            left: {
+                                                type: "spring",
+                                                stiffness: 300,
+                                                damping: 25
+                                            }
+                                        }}
+                                    >
+                                        <AnimatePresence mode="wait" initial={false}>
+                                            <motion.div
+                                                key={`card-${card.rank}-${card.suit}`}
+                                                style={{
+                                                    position: 'absolute',
+                                                    transformStyle: 'preserve-3d',
+                                                    width: '65px',
+                                                    height: '94px'
+                                                }}
+                                                initial={isFirstCard && !isFaceDown ? { rotateY: 0 } : false}
+                                                animate={{ rotateY: 180 }}
+                                                exit={{ rotateY: 0 }}
+                                                transition={{
+                                                    duration: 0.6,
+                                                    ease: "easeInOut"
+                                                }}
+                                            >
+                                                <Image
+                                                    src={card.imageUrl}
+                                                    alt={card.alt}
+                                                    width={65}
+                                                    height={94}
+                                                    draggable={false}
+                                                    style={{
+                                                        backfaceVisibility: 'hidden',
+                                                        transform: 'rotateY(180deg)'
+                                                    }}
+                                                />
+                                            </motion.div>
+                                        </AnimatePresence>
+                                    </motion.div>
+                                );
+                            })}
                         </div>
-                    </div>
-                    <div className="mt-12 text-white italic font-semibold">
-                        {dealerHandValue &&
-                            (typeof dealerHandValue.value === 'number'
-                                ? <>{dealerHandValue.value}</>
-                                : <>{dealerHandValue.value.low} / {dealerHandValue.value.high}</>)
-                        } {dealerHandValue?.status && (
-                            <span className="text-[#DAA520] not-italic font-light">
-                                {dealerHandValue.status}
-                            </span>
+                    </motion.div>
+                    <AnimatePresence mode="wait">
+                        {dealerHandValue && (
+                            <motion.div
+                                key={typeof dealerHandValue.value === 'number' ? dealerHandValue.value : `${dealerHandValue.value.low}-${dealerHandValue.value.high}`}
+                                className="mt-12 text-white italic font-semibold"
+                                initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.5, y: 10 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            >
+                                {typeof dealerHandValue.value === 'number'
+                                    ? <>{dealerHandValue.value}</>
+                                    : <>{dealerHandValue.value.low} / {dealerHandValue.value.high}</>
+                                } {dealerHandValue?.status && (
+                                    <span className="text-[#DAA520] not-italic font-light">
+                                        {dealerHandValue.status}
+                                    </span>
+                                )}
+                            </motion.div>
                         )}
-                    </div>
+                    </AnimatePresence>
                 </div>
 
                 <div className="w-1/5 text-[#DAA520] text-center cursor-pointer">
@@ -719,17 +1031,69 @@ export default function Page() {
                     </div>
                 </div>
             </div>
-            <div className="mt-4 text-white italic font-semibold">
-                {status && <>{status}</>}
-            </div>
+            <AnimatePresence mode="wait">
+                <motion.div
+                    className="mt-4 italic font-semibold"
+                    key={myResult || status}
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    transition={{ duration: 0.3 }}
+                >
+                    {myResult ? (
+                        <span className={`text-2xl inline-flex items-center gap-1 ${
+                            myResult === "win" || myResult === "blackjack"
+                                ? "text-green-400"
+                                : myResult === "lose"
+                                ? "text-red-400"
+                                : "text-yellow-400"
+                        }`}>
+                            {myResult === "win" && (
+                                <>You won <Currency size={20} />{myWinAmount}!</>
+                            )}
+                            {myResult === "blackjack" && (
+                                <>BLACKJACK! <Currency size={20} />{myWinAmount}!</>
+                            )}
+                            {myResult === "lose" && "You lost"}
+                            {myResult === "push" && "Push"}
+                        </span>
+                    ) : (
+                        <span className="text-white">{status}</span>
+                    )}
+                </motion.div>
+            </AnimatePresence>
         </div>
     }
 
     function getOtherPlayerComponent(playerIndex: number) {
         if (otherPlayers.length > playerIndex) {
             const otherPlayer = otherPlayers[playerIndex];
+            const isPlayersTurn = currentPlayerNickname === otherPlayer.nickname;
 
-            return <div className={`${otherPlayer.disconnected ? "opacity-50" : ""} flex flex-col items-center gap-2`}>
+            return <motion.div
+                key={otherPlayer.nickname}
+                className="flex flex-col items-center gap-2"
+                initial={{ opacity: 0, scale: 0.8, y: -20 }}
+                animate={isPlayersTurn ? {
+                    opacity: otherPlayer.disconnected ? 0.5 : 1,
+                    scale: [1, 1.02, 1],
+                    y: 0
+                } : {
+                    opacity: otherPlayer.disconnected ? 0.5 : 1,
+                    scale: 1,
+                    y: 0
+                }}
+                exit={{ opacity: 0, scale: 0.8, y: -20 }}
+                transition={{
+                    opacity: { duration: 0.3 },
+                    scale: isPlayersTurn ? {
+                        duration: 1.5,
+                        repeat: Number.POSITIVE_INFINITY,
+                        ease: "easeInOut"
+                    } : { type: "spring", stiffness: 300, damping: 25 },
+                    y: { type: "spring", stiffness: 300, damping: 25 }
+                }}
+            >
                 <h2 className="flex text-white italic font-semibold">
                     {otherPlayer.nickname} {otherPlayer.worth ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{otherPlayer.worth}</span> : ''}
                 </h2>
@@ -738,52 +1102,157 @@ export default function Page() {
                         <div className="flex text-white italic">
                             {otherPlayer.bet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{otherPlayer.bet}</span> : ''}
                         </div>
-                        <div className="relative h-24 w-32">
-                            {otherPlayer.hand && otherPlayer.hand.map((card, index) =>
-                                <div key={`other-player-1-${index}`} className="absolute" style={{ left: `${index * 16}px` }}>
-                                    <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
-                                </div>
-                            )}
+                        <div className="relative">
+                            <AnimatePresence>
+                                {isPlayersTurn && phase === "players_turn" && totalTime && timeLeft && (
+                                    <motion.svg
+                                        className="absolute -left-8 -top-8"
+                                        width="192"
+                                        height="192"
+                                        viewBox="0 0 192 192"
+                                        style={{ transform: 'rotate(-90deg)' }}
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 0.8 }}
+                                        transition={{ duration: 0.3 }}
+                                    >
+                                        <circle
+                                            cx="96"
+                                            cy="96"
+                                            r="90"
+                                            fill="none"
+                                            stroke="#DAA520"
+                                            strokeWidth="4"
+                                            strokeDasharray={`${2 * Math.PI * 90}`}
+                                            strokeDashoffset={`${2 * Math.PI * 90 * (timeLeft / totalTime)}`}
+                                            className="transition-all duration-1000 ease-linear"
+                                        />
+                                    </motion.svg>
+                                )}
+                            </AnimatePresence>
+                            <div className="relative h-24 w-32">
+                                <AnimatePresence mode="popLayout">
+                                    {otherPlayer.hand && otherPlayer.hand.map((card, index) =>
+                                        <motion.div
+                                            key={`other-player-${playerIndex}-${card.rank}-${card.suit}-${index}`}
+                                            className="absolute"
+                                            style={{ left: `${index * 16}px` }}
+                                            initial={{
+                                                opacity: 0,
+                                                y: -150,
+                                                x: playerIndex === 0 ? 80 : -80,
+                                                scale: 0.8,
+                                                rotate: playerIndex === 0 ? -8 : 8
+                                            }}
+                                            animate={{
+                                                opacity: 1,
+                                                y: 0,
+                                                x: 0,
+                                                scale: 1,
+                                                rotate: 0
+                                            }}
+                                            exit={{
+                                                opacity: 0,
+                                                scale: 0.8
+                                            }}
+                                            transition={{
+                                                type: "spring",
+                                                stiffness: 200,
+                                                damping: 20,
+                                                delay: index * 0.2
+                                            }}
+                                        >
+                                            <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
                         </div>
-                        <div className="text-white italic font-semibold">
-                            {otherPlayer.handValue && (typeof otherPlayer.handValue.value === 'number'
-                                ? <>{otherPlayer.handValue.value}</>
-                                : <>{otherPlayer.handValue.value.low} / {otherPlayer.handValue.value.high}</>)
-                            } {otherPlayer.handValue?.status && (
-                                <span className="text-[#DAA520] not-italic font-light">
-                                    {otherPlayer.handValue.status}
-                                </span>
+                        <AnimatePresence mode="wait">
+                            {otherPlayer.handValue && (
+                                <motion.div
+                                    key={typeof otherPlayer.handValue.value === 'number' ? otherPlayer.handValue.value : `${otherPlayer.handValue.value.low}-${otherPlayer.handValue.value.high}`}
+                                    className="text-white italic font-semibold"
+                                    initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.5, y: 10 }}
+                                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                >
+                                    {typeof otherPlayer.handValue.value === 'number'
+                                        ? <>{otherPlayer.handValue.value}</>
+                                        : <>{otherPlayer.handValue.value.low} / {otherPlayer.handValue.value.high}</>
+                                    } {otherPlayer.handValue?.status && (
+                                        <span className="text-[#DAA520] not-italic font-light">
+                                            {otherPlayer.handValue.status}
+                                        </span>
+                                    )}
+                                </motion.div>
                             )}
-                        </div>
+                        </AnimatePresence>
                     </div>
                 }
                 {phase === "bet" ?
-                    <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-42">
-                        <div className="flex justify-center items-end text-white italic font-semibold pb-1">
-                            {otherPlayer.bet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{otherPlayer.bet}</span> : ''}
-                        </div>
-                        <div className="flex justify-center items-center h-full">
-                            {(() => {
-                                const playerBetChips = otherPlayer.bet
-                                    ? convertToChips(otherPlayer.bet)
-                                    : [0, 0, 0, 0, 0];
-                                return (
-                                    <>
-                                        <Chip color="white" amount={playerBetChips[0]} size={30} />
-                                        <Chip color="red" amount={playerBetChips[1]} size={30} />
-                                        <Chip color="green" amount={playerBetChips[2]} size={30} />
-                                        <Chip color="black" amount={playerBetChips[3]} size={30} />
-                                        <Chip color="blue" amount={playerBetChips[4]} size={30} />
-                                    </>
-                                );
-                            })()}
-                        </div>
-                        <div className="flex justify-center text-white">
-                            {otherPlayer.check ? <Check size={30} /> : ""}
+                    <div className="relative size-42">
+                        <AnimatePresence>
+                            {((phase === "bet" && totalTime && timeLeft && !otherPlayer.check) || (isPlayersTurn && totalTime && timeLeft)) && (
+                                <motion.svg
+                                    className="absolute inset-0 -rotate-90"
+                                    viewBox="0 0 144 144"
+                                    initial={{ opacity: 0, scale: 0.8 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.8 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    <circle
+                                        cx="72"
+                                        cy="72"
+                                        r="70"
+                                        fill="none"
+                                        stroke="#DAA520"
+                                        strokeWidth="4"
+                                        strokeDasharray={`${2 * Math.PI * 70}`}
+                                        strokeDashoffset={`${2 * Math.PI * 70 * (timeLeft / totalTime)}`}
+                                        className="transition-all duration-1000 ease-linear"
+                                    />
+                                </motion.svg>
+                            )}
+                        </AnimatePresence>
+                        <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-42">
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={otherPlayer.bet}
+                                    className="flex justify-center items-end text-white italic font-semibold pb-1"
+                                    initial={{ opacity: 0, y: -10, scale: 0.8 }}
+                                    animate={{ opacity: otherPlayer.bet ? 1 : 0, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: 10, scale: 0.8 }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 25, duration: 0.2 }}
+                                >
+                                    {otherPlayer.bet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{otherPlayer.bet}</span> : ''}
+                                </motion.div>
+                            </AnimatePresence>
+                            <div className="flex justify-center items-center h-full">
+                                {(() => {
+                                    const playerBetChips = otherPlayer.bet
+                                        ? convertToChips(otherPlayer.bet)
+                                        : [0, 0, 0, 0, 0];
+                                    return (
+                                        <>
+                                            <Chip color="white" amount={playerBetChips[0]} size={30} />
+                                            <Chip color="red" amount={playerBetChips[1]} size={30} />
+                                            <Chip color="green" amount={playerBetChips[2]} size={30} />
+                                            <Chip color="black" amount={playerBetChips[3]} size={30} />
+                                            <Chip color="blue" amount={playerBetChips[4]} size={30} />
+                                        </>
+                                    );
+                                })()}
+                            </div>
+                            <div className="flex justify-center text-white">
+                                {otherPlayer.check ? <Check size={30} /> : ""}
+                            </div>
                         </div>
                     </div>
                     : <></>}
-            </div>;
+            </motion.div>;
         }
 
         return <></>;
