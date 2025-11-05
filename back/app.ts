@@ -19,12 +19,15 @@ import {
     DECK, NUM_DECKS,
     MAX_PLAYERS_PER_ROOM,
     MAX_ROOM_ID, ROOM_NAME_FORMAT,
-    TIMER,
+    BET_TIME,
     TOTAL_CARDS,
     DECK_PENETRATION,
     shuffle,
     Card,
-    DEAL_TIME
+    DEAL_TIME,
+    SHORT_WAIT,
+    PLAY_TIME,
+    PLAYER_TIMEOUT
 } from './util';
 import prisma from './db';
 import { Room } from './models/room';
@@ -61,23 +64,24 @@ const io = new Server(server, {
 });
 
 let users = new Map<string, UserData>();
-let currentRoomId = 0;
-let disconnects = new Map<string, NodeJS.Timeout>();
 let rooms = new Map<string, Room>();
+let currentRoomId = 0;
 
 io.on('connection', async (socket) => {
     socket.on("register nickname", async (nickname) => {
-        const existing = users.get(nickname)
+        logInfo(`register nickname: handshake - '${nickname}'`);
+        const existing = users.get(nickname);
 
-        if (existing && existing.socketId !== socket.id) {
-            if (!disconnects.has(nickname)) {
+        if (existing) {
+            if (!existing.disconnected && existing.socketId != socket.id) {
+                logInfo(`register nickname: '${nickname}' unavailable`);
                 socket.emit('nickname unavailable');
                 return;
             }
 
-            clearTimeout(disconnects.get(nickname));
-            disconnects.delete(nickname);
-            logInfo(`${nickname} from ${existing.countryCode} reconnected before timeout`);
+            clearTimeout(existing.disconnectedTimer);
+            existing.disconnected = false;
+            logInfo(`register nickname: ${nickname} from ${existing.countryCode} reconnected before timeout`);
         }
 
         socket.data.nickname = nickname;
@@ -85,7 +89,7 @@ io.on('connection', async (socket) => {
         const ip = getIp(socket);
         const countryCode = existing?.countryCode || await getCountryCodeFromIP(ip) || "somewhere";
 
-        /** Don't allow users to get a refill if same nickname & country */
+        // Don't allow users to get a refill if same nickname & country
         const tempUser = await prisma.tempUser.upsert({
             where: {
                 nickname_countryCode: { nickname, countryCode }
@@ -109,16 +113,16 @@ io.on('connection', async (socket) => {
         }
         else {
             users.set(nickname, {
-                nickname,
                 socketId: socket.id,
+                nickname,
                 countryCode,
                 cash: tempUser.cash,
+                disconnected: false,
             });
         }
 
-        logInfo(`on nickname handshake: ${nickname} from ${countryCode} (ip: ${ip})`);
-
-        socket.emit('nickname accepted', { cash: tempUser.cash });
+        logInfo(`register nickname: handshake complete - '${nickname}' from ${countryCode} (ip: ${ip})`);
+        socket.emit('nickname accepted');
     });
 
     socket.on("disconnect", () => {
@@ -139,41 +143,38 @@ io.on('connection', async (socket) => {
         }
 
         const timeoutId = setTimeout(() => {
+            clearTimeout(user.disconnectedTimer);
+
             const countryCode = user.countryCode;
-            const roomName = user.roomName;
+            if (user.roomName) {
+                const room = user.room!;
+                const wasCurrentPlayer = room.phase === "players_turn" &&
+                    room.currentPlayerIndex !== undefined &&
+                    room.players[room.currentPlayerIndex]?.nickname === nickname;
 
-            disconnects.delete(nickname);
+                room.players = room.players.filter(player => player.nickname !== nickname);
 
-            if (roomName) {
-                const room = rooms.get(roomName);
-                if (room) {
-                    const wasCurrentPlayer = room.phase === "players_turn" &&
-                        room.currentPlayerIndex !== undefined &&
-                        room.players[room.currentPlayerIndex]?.nickname === nickname;
+                if (wasCurrentPlayer) {
+                    clearInterval(room.timer);
+                    nextPlayer(room);
+                }
 
-                    room.players = room.players.filter(player => player.nickname !== nickname);
-
-                    if (wasCurrentPlayer) {
-                        clearInterval(room.timer);
-                        moveToNextPlayer(room);
-                    }
-
-                    if (room.players.length === 0) {
-                        clearInterval(room.timer);
-                        rooms.delete(roomName);
-                    } else {
-                        io.to(roomName).emit("user removed", nickname);
-                    }
+                if (room.players.length === 0) {
+                    clearInterval(room.timer);
+                    rooms.delete(room.name);
+                } else {
+                    io.to(room.name).emit("user removed", nickname);
                 }
             }
 
             users.delete(nickname);
 
-            logInfo(`${nickname} from ${countryCode} (ip: ${socket.handshake.address}) removed after timeout`);
-        }, 30_000);
+            logInfo(`'${nickname}' from ${countryCode} (ip: ${socket.handshake.address}) removed after timeout`);
+        }, PLAYER_TIMEOUT * 1000);
 
-        disconnects.set(nickname, timeoutId);
-        logInfo(`${nickname} marked as a disconnect`);
+        user.disconnected = true;
+        user.disconnectedTimer = timeoutId;
+        logInfo(`disconnect: ${nickname} marked as a disconnect`);
     });
 
     socket.on("join room", () => {
@@ -198,7 +199,7 @@ io.on('connection', async (socket) => {
             const room = rooms.get(user.roomName);
             switch (room!.phase) {
                 case "bet":
-                    socket.emit("timer update", room!.timeLeft, TIMER);
+                    socket.emit("timer update", room!.timeLeft, BET_TIME);
                     break;
             }
 
@@ -230,7 +231,7 @@ io.on('connection', async (socket) => {
                 const room = rooms.get(roomFoundName);
                 if (room) {
                     room.timeLeft!--;
-                    io.to(roomFoundName).emit("timer update", room.timeLeft, TIMER);
+                    io.to(roomFoundName).emit("timer update", room.timeLeft, BET_TIME);
 
                     if (room.timeLeft! <= 0) {
                         room.timeLeft = 0;
@@ -244,11 +245,11 @@ io.on('connection', async (socket) => {
                 name: roomFoundName,
                 players: [user],
                 timer,
-                timeLeft: TIMER,
+                timeLeft: BET_TIME,
                 phase: "bet"
             });
 
-            socket.emit("timer update", TIMER, TIMER);
+            socket.emit("timer update", BET_TIME, BET_TIME);
 
             const room = rooms.get(roomFoundName)!;
             room.shoe = buildShoe();
@@ -259,7 +260,7 @@ io.on('connection', async (socket) => {
             const room = rooms.get(roomFoundName)!;
             room.players.push(user);
 
-            socket.emit("timer update", rooms.get(roomFoundName)!.timeLeft, TIMER);
+            socket.emit("timer update", rooms.get(roomFoundName)!.timeLeft, BET_TIME);
         }
 
         const room = rooms.get(roomFoundName)!;
@@ -483,7 +484,10 @@ io.on('connection', async (socket) => {
         if (allChecked) {
             clearInterval(room.timer);
             dealInitialCards(room);
+            return;
         }
+
+        socket.to(room.name).emit("user check", nickname);
     });
 
     socket.on("hit", async () => {
@@ -525,21 +529,27 @@ io.on('connection', async (socket) => {
             return;
         }
 
+        let handValue = getHandValue(user.hand);
+        if (handValue >= 21) {
+            logWarning(`hit: user '${nickname}' has already 21 or busted, hand value: ${handValue}`);
+            return;
+        }
+
         const card = dealCard(room);
         user.hand.push(card);
 
         io.to(room.name).emit("deal player card", getUserMap(user), getCardMap(card));
         logInfo(`hit: dealt ${getLoggingCard(card)} to ${nickname}`);
 
-        const handValue = getHandValue(user.hand);
+        handValue = getHandValue(user.hand);
         if (handValue > 21) {
             logInfo(`hit: ${nickname} busted with ${handValue}`);
             await wait(2);
-            moveToNextPlayer(room);
+            nextPlayer(room);
         } else if (handValue === 21) {
             logInfo(`hit: ${nickname} reached 21`);
             await wait(2);
-            moveToNextPlayer(room);
+            nextPlayer(room);
         }
     });
 
@@ -579,7 +589,7 @@ io.on('connection', async (socket) => {
 
         user.stand = true;
         logInfo(`stand: ${nickname} stands with ${getHandValue(user.hand)}`);
-        moveToNextPlayer(room);
+        nextPlayer(room);
     });
 });
 
@@ -672,53 +682,15 @@ async function dealInitialCards(room: Room) {
 
 async function startPlayerTurns(room: Room) {
     room.phase = "players_turn";
+    room.currentPlayerIndex = -1;
     io.to(room.name).emit("players turn", getRoomMap(room));
 
-    let firstPlayerIndex = -1;
-    for (let i = 0; i < room.players.length; i++) {
-        if (room.players[i].bet && room.players[i].bet! > 0) {
-            firstPlayerIndex = i;
-            break;
-        }
-    }
+    await wait(SHORT_WAIT);
 
-    if (firstPlayerIndex === -1) {
-        dealerPlays(room);
-        return;
-    }
-
-    room.currentPlayerIndex = firstPlayerIndex;
-    const currentPlayer = room.players[room.currentPlayerIndex];
-
-    const handValue = getHandValue(currentPlayer.hand);
-    if (handValue === 21 && currentPlayer.hand!.length === 2) {
-        logInfo(`startPlayerTurns: ${currentPlayer.nickname} has blackjack!`);
-        io.to(room.name).emit("player turn", currentPlayer.nickname);
-        await wait(2);
-        moveToNextPlayer(room);
-        return;
-    }
-
-    io.to(room.name).emit("player turn", currentPlayer.nickname);
-
-    room.timeLeft = TIMER;
-    room.timer = setInterval(() => {
-        room.timeLeft!--;
-        io.to(room.name).emit("timer update", room.timeLeft, TIMER);
-
-        if (room.timeLeft! <= 0) {
-            room.timeLeft = 0;
-            clearInterval(room.timer);
-            currentPlayer.stand = true;
-            logInfo(`startPlayerTurns: ${currentPlayer.nickname} timed out, auto-standing`);
-            moveToNextPlayer(room);
-        }
-    }, 1000);
-
-    io.to(room.name).emit("timer update", TIMER, TIMER);
+    nextPlayer(room);
 }
 
-async function moveToNextPlayer(room: Room) {
+async function nextPlayer(room: Room) {
     clearInterval(room.timer);
 
     if (!rooms.has(room.name)) {
@@ -734,7 +706,7 @@ async function moveToNextPlayer(room: Room) {
     }
 
     if (nextPlayerIndex === -1) {
-        await wait(2);
+        await wait(SHORT_WAIT);
         dealerPlays(room);
         return;
     }
@@ -744,30 +716,31 @@ async function moveToNextPlayer(room: Room) {
 
     const handValue = getHandValue(currentPlayer.hand);
     if (handValue === 21 && currentPlayer.hand!.length === 2) {
-        logInfo(`moveToNextPlayer: ${currentPlayer.nickname} has blackjack!`);
-        io.to(room.name).emit("player turn", currentPlayer.nickname);
-        await wait(2);
-        moveToNextPlayer(room);
+        logInfo(`nextPlayer: ${currentPlayer.nickname} has blackjack!`);
+        currentPlayer.stand = true;
+        io.to(room.name).emit("player turn", getUserMap(currentPlayer));
+        await wait(SHORT_WAIT);
+        nextPlayer(room);
         return;
     }
 
-    io.to(room.name).emit("player turn", currentPlayer.nickname);
+    io.to(room.name).emit("player turn", getUserMap(currentPlayer));
 
-    room.timeLeft = TIMER;
+    room.timeLeft = PLAY_TIME;
     room.timer = setInterval(() => {
         room.timeLeft!--;
-        io.to(room.name).emit("timer update", room.timeLeft, TIMER);
+        io.to(room.name).emit("timer update", room.timeLeft, PLAY_TIME);
 
         if (room.timeLeft! <= 0) {
             room.timeLeft = 0;
             clearInterval(room.timer);
             currentPlayer.stand = true;
-            logInfo(`moveToNextPlayer: ${currentPlayer.nickname} timed out, auto-standing`);
-            moveToNextPlayer(room);
+            logInfo(`nextPlayer: ${currentPlayer.nickname} timed out, auto-standing`);
+            nextPlayer(room);
         }
     }, 1000);
 
-    io.to(room.name).emit("timer update", TIMER, TIMER);
+    io.to(room.name).emit("timer update", PLAY_TIME, PLAY_TIME);
 }
 
 async function dealerPlays(room: Room) {
@@ -914,14 +887,14 @@ function restartGame(room: Room) {
 
     room.dealerHand = undefined;
     clearInterval(room.timer);
-    room.timeLeft = TIMER;
+    room.timeLeft = BET_TIME;
     room.phase = "bet";
 
     io.to(room.name).emit("restart", getRoomMap(room));
 
     room.timer = setInterval(() => {
         room.timeLeft!--;
-        io.to(room.name).emit("timer update", room.timeLeft, TIMER);
+        io.to(room.name).emit("timer update", room.timeLeft, BET_TIME);
 
         if (room.timeLeft! <= 0) {
             room.timeLeft = 0;
@@ -930,7 +903,7 @@ function restartGame(room: Room) {
         }
     }, 1000);
 
-    io.to(room.name).emit("timer update", TIMER, TIMER);
+    io.to(room.name).emit("timer update", BET_TIME, BET_TIME);
 }
 
 function dealCard(room: Room) {
@@ -1012,8 +985,10 @@ function getUserMap(user: UserData) {
         bet: user.bet,
         betBefore: user.betBefore,
         check: user.check,
+        stand: user.stand,
         hand: user.hand?.map(c => getCardMap(c)),
-        handValue: getHandValueDisplay(user.hand)
+        handValue: getHandValueDisplay(user.hand),
+        disconnected: user.disconnected,
     }
 }
 
@@ -1024,7 +999,7 @@ function getRoomMap(room: Room) {
         timeLeft: room.timeLeft,
         phase: room.phase,
         dealerHand: room.dealerHand?.map(c => getCardMap(c)),
-        currentPlayer: room.currentPlayerIndex ?
+        currentPlayer: room.currentPlayerIndex && room.currentPlayerIndex >= 0 ?
             getUserMap(room.players[room.currentPlayerIndex]) :
             undefined,
     };

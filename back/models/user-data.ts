@@ -2,8 +2,8 @@ import { Card } from "../util";
 import { Room } from "./room";
 
 export interface UserData {
-    nickname: string;
     socketId: string;
+    nickname: string;
     countryCode: string;
     room?: Room;
     roomName?: string;
@@ -13,4 +13,6 @@ export interface UserData {
     check?: boolean;
     stand?: boolean;
     hand?: Card[];
+    disconnected: boolean;
+    disconnectedTimer?: NodeJS.Timeout;
 }

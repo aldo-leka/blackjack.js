@@ -1,9 +1,12 @@
 export const MAX_ROOM_ID = 10_000;
 export const MAX_PLAYERS_PER_ROOM = 3;
-export const DAILY_REFILL_VALUE = 10;
+export const DAILY_REFILL_VALUE = 75;
 export const ROOM_NAME_FORMAT = "ROOM_{id}";
-export const TIMER = 20;
+export const PLAYER_TIMEOUT = 30;
+export const BET_TIME = 20;
+export const PLAY_TIME = 20;
 export const DEAL_TIME = 1.5;
+export const SHORT_WAIT = 2;
 export const CHIPS = [
   1, // WHITE
   5, // RED

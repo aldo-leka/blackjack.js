@@ -2,7 +2,7 @@
 
 import Chip from "@/components/Chip";
 import { socket } from "@/lib/socket";
-import { Check, Hand, Plus, Repeat, Split, X } from "lucide-react";
+import { Check, Currency, Hand, Plus, Repeat, Split, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
 import { Card, CHIPS, DECK, HandValue } from "@/lib/util";
@@ -15,6 +15,7 @@ interface Player {
     bet?: number;
     betBefore?: number;
     check?: boolean;
+    stand?: boolean;
     hand?: Card[];
     handValue?: HandValue;
     disconnected: boolean;
@@ -27,8 +28,10 @@ interface ApiPlayer {
     bet?: number;
     betBefore?: number;
     check?: boolean;
+    stand?: boolean;
     hand?: ApiCard[]
     handValue: HandValue;
+    disconnected: boolean;
 }
 
 type Phase = "bet" | "deal_initial_cards" | "players_turn" | "dealers_turn" | "payout";
@@ -48,10 +51,10 @@ interface ApiCard {
 }
 
 // TODO If dealer has blackjack, reveal immediately?
-    // if dealer's face up card is a 10, J, Q, K, Ace he checks his
-    // face down card, and reveals a blackjack instantly.
-    // players don't play their round in that case.
-    // only players who also have blackjack push, otherwise lose.
+// if dealer's face up card is a 10, J, Q, K, Ace he checks his
+// face down card, and reveals a blackjack instantly.
+// players don't play their round in that case.
+// only players who also have blackjack push, otherwise lose.
 export default function Page() {
     const { nickname, isHandshakeComplete } = useNickname();
     const [worth, setWorth] = useState<number>();
@@ -103,8 +106,7 @@ export default function Page() {
                     nickname: player.nickname,
                     countryCode: player.countryCode,
                     worth: player.cash!,
-                    bet: player.bet,
-                    disconnected: false
+                    disconnected: false,
                 }];
             });
         }
@@ -144,6 +146,17 @@ export default function Page() {
                 prev.map(player =>
                     player.nickname === username
                         ? { ...player, bet }
+                        : player
+                )
+            );
+        }
+
+        function userCheck(username: string) {
+            console.log(`userCheck: user: ${username}`);
+            setOtherPlayers(prev =>
+                prev.map(player =>
+                    player.nickname === username
+                        ? { ...player, check: true }
                         : player
                 )
             );
@@ -255,15 +268,11 @@ export default function Page() {
             setStatus(getStatus(room.phase!));
         }
 
-        function playerTurn(username: string) {
-            if (username === nickname) {
-                setIsMyTurn(true);
-                setStatus(getStatus("players_turn", true));
-                return;
-            }
-
-            setIsMyTurn(false);
-            setStatus(getStatus("players_turn"));
+        function playerTurn(player: ApiPlayer) {
+            const isMyTurn = player.nickname === nickname;
+            setIsMyTurn(isMyTurn);
+            setStatus(getStatus("players_turn", isMyTurn));
+            setStand(player.stand);
         }
 
         function dealerPlays(room: ApiRoom) {
@@ -304,9 +313,10 @@ export default function Page() {
                 bet: player.bet,
                 betBefore: player.betBefore,
                 check: player.check,
+                stand: player.stand,
                 hand: player.hand?.map(c => getCard(c)),
                 handValue: player.handValue,
-                disconnected: false
+                disconnected: player.disconnected,
             };
         }
 
@@ -335,6 +345,7 @@ export default function Page() {
         socket.on("user disconnected", userDisconnected);
         socket.on("user removed", userRemoved);
         socket.on("user change bet", userChangeBet);
+        socket.on("user check", userCheck);
         socket.on("already in room", alreadyInRoom);
         socket.on("timer update", timerUpdate);
         socket.on("deal initial cards", dealInitialCards);
@@ -355,6 +366,7 @@ export default function Page() {
             socket.off("user disconnected", userDisconnected);
             socket.off("user removed", userRemoved);
             socket.off("user change bet", userChangeBet);
+            socket.off("user check", userCheck);
             socket.off("already in room", alreadyInRoom);
             socket.off("timer update", timerUpdate);
             socket.off("deal initial cards", dealInitialCards);
@@ -409,6 +421,8 @@ export default function Page() {
         }
     }
 
+    const bustedOrBlackjack = handValue && typeof handValue.value === "number" && handValue.value >= 21;
+
     return (
         <div className="grid grid-rows-4 grid-cols-2 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
             <div id="dealer-zone" className="col-span-2">
@@ -417,8 +431,8 @@ export default function Page() {
 
             <div id="player-zone" className="col-span-2 grid grid-cols-2 gap-2 px-8">
                 <div className="flex flex-col items-center gap-2 justify-self-end">
-                    <h2 className="text-white italic font-semibold">
-                        You {worth && <>(${worth})</>}
+                    <h2 className="flex text-white italic font-semibold">
+                        You {worth ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{worth}</span> : <></>}
                     </h2>
                     {phase !== "bet" && <div>
                         <div className="relative h-24 w-32">
@@ -528,7 +542,7 @@ export default function Page() {
 
                         <div className="grid grid-rows-3 bg-[#daa52080] rounded-full size-42 border-4 border-transparent">
                             <div className="flex justify-center items-end text-white italic font-semibold pb-1">
-                                {bet ? `$${bet}` : ''}
+                                {bet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{bet}</span> : ''}
                             </div>
                             <div className="flex justify-center items-center">
                                 <Chip color="white" amount={betChips[0]} size={30} />
@@ -543,35 +557,49 @@ export default function Page() {
                         {phase === "players_turn" && isMyTurn &&
                             <div className="grid grid-cols-2 gap-2">
                                 <button
-                                    onClick={() => socket.emit("hit")}
-                                    className={`${stand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]`}
+                                    onClick={() => {
+                                        if (!stand && !bustedOrBlackjack) {
+                                            socket.emit("hit");
+                                        }
+                                    }}
+                                    className={`${stand || bustedOrBlackjack ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]`}
                                     title="Hit - Draw another card"
                                 >
                                     <Plus size={25} />
                                 </button>
                                 <button
                                     onClick={() => {
-                                        if (!stand) {
+                                        if (!stand && !bustedOrBlackjack) {
                                             setStand(true);
                                             socket.emit("stand");
                                         }
                                     }}
-                                    className={`${stand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]`}
+                                    className={`${stand || bustedOrBlackjack ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]`}
                                     title="Stand - Keep current hand"
                                 >
                                     <Hand size={25} />
                                 </button>
                                 <button
-                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]"
-                                    title="Stand - Keep current hand"
+                                    onClick={() => {
+                                        if (!stand) {
+
+                                        }
+                                    }}
+                                    className={`${stand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]`}
+                                    title="Split — Split into two hands"
                                 >
                                     <Split size={25} />
                                 </button>
                                 <button
-                                    className="px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]"
-                                    title="Stand - Keep current hand"
+                                    onClick={() => {
+                                        if (!stand) {
+
+                                        }
+                                    }}
+                                    className={`${stand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32] hover:bg-[#c99a1f]`}
+                                    title="Double — Double bet, take one card"
                                 >
-                                    <Split size={25} />
+                                    2X
                                 </button>
                             </div>
                         }
@@ -585,29 +613,32 @@ export default function Page() {
                                         }
                                     }}
                                     className={`${!bet || bet === 0 || check ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                    title="Ready — End turn now"
                                 >
                                     <Check size={25} />
                                 </button>
                                 <button
                                     onClick={() => {
-                                        if (bet && bet > 0) {
+                                        if (bet && bet > 0 && !check) {
                                             setBet(0);
                                             socket.emit("remove bet");
                                         }
                                     }}
-                                    className={`${!bet || bet === 0 ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                    className={`${!bet || bet === 0 || check ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                    title="Clear Bet — Remove your bet"
                                 >
                                     <X size={25} />
                                 </button>
                                 {worth && betBefore && worth >= betBefore ?
                                     <button
                                         onClick={() => {
-                                            if (worth && betBefore && worth >= betBefore) {
+                                            if (worth && betBefore && worth >= betBefore && !check) {
                                                 setBet(betBefore);
                                                 socket.emit("repeat bet");
                                             }
                                         }}
-                                        className={`px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                        className={`${check ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                        title="Rebet — Repeat last bet"
                                     >
                                         <Repeat size={25} />
                                     </button> : <></>
@@ -615,12 +646,13 @@ export default function Page() {
                                 {worth && betBefore && worth >= betBefore * 2 ?
                                     <button
                                         onClick={() => {
-                                            if (worth && betBefore && worth >= betBefore * 2) {
+                                            if (worth && betBefore && worth >= betBefore * 2 && !check) {
                                                 setBet(betBefore * 2);
                                                 socket.emit("double bet");
                                             }
                                         }}
-                                        className={`px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                        className={`${check ? "opacity-50" : ""} px-2 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                        title="Double Bet — Double your bet"
                                     >
                                         2X
                                     </button> : <></>
@@ -698,13 +730,13 @@ export default function Page() {
             const otherPlayer = otherPlayers[playerIndex];
 
             return <div className={`${otherPlayer.disconnected ? "opacity-50" : ""} flex flex-col items-center gap-2`}>
-                <h2 className="text-white italic font-semibold">
-                    {otherPlayer.nickname} (${otherPlayer.worth})
+                <h2 className="flex text-white italic font-semibold">
+                    {otherPlayer.nickname} {otherPlayer.worth ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{otherPlayer.worth}</span> : ''}
                 </h2>
                 {phase !== "bet" &&
                     <div className="flex flex-col items-start">
-                        <div className="text-white italic">
-                            {otherPlayer.bet ? `$${otherPlayer.bet}` : ''}
+                        <div className="flex text-white italic">
+                            {otherPlayer.bet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{otherPlayer.bet}</span> : ''}
                         </div>
                         <div className="relative h-24 w-32">
                             {otherPlayer.hand && otherPlayer.hand.map((card, index) =>
@@ -728,7 +760,7 @@ export default function Page() {
                 {phase === "bet" ?
                     <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-42">
                         <div className="flex justify-center items-end text-white italic font-semibold pb-1">
-                            {otherPlayer.bet ? `$${otherPlayer.bet}` : ''}
+                            {otherPlayer.bet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{otherPlayer.bet}</span> : ''}
                         </div>
                         <div className="flex justify-center items-center h-full">
                             {(() => {
@@ -747,7 +779,7 @@ export default function Page() {
                             })()}
                         </div>
                         <div className="flex justify-center text-white">
-                            {otherPlayer.check ? <Check size={16} /> : ""}
+                            {otherPlayer.check ? <Check size={30} /> : ""}
                         </div>
                     </div>
                     : <></>}
