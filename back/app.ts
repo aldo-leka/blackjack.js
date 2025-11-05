@@ -150,6 +150,7 @@ io.on('connection', async (socket) => {
                 const room = user.room!;
                 const wasCurrentPlayer = room.phase === "players_turn" &&
                     room.currentPlayerIndex !== undefined &&
+                    room.currentPlayerIndex >= 0 &&
                     room.players[room.currentPlayerIndex]?.nickname === nickname;
 
                 room.players = room.players.filter(player => player.nickname !== nickname);
@@ -514,7 +515,7 @@ io.on('connection', async (socket) => {
             return;
         }
 
-        if (room.currentPlayerIndex === undefined || room.players[room.currentPlayerIndex].nickname !== nickname) {
+        if (room.currentPlayerIndex === undefined || (room.currentPlayerIndex >= 0 && room.players[room.currentPlayerIndex].nickname !== nickname)) {
             logWarning(`hit: not current player's turn (current: ${room.players[room.currentPlayerIndex!]?.nickname}, requested: ${nickname})`);
             return;
         }
@@ -577,7 +578,7 @@ io.on('connection', async (socket) => {
             return;
         }
 
-        if (room.currentPlayerIndex === undefined || room.players[room.currentPlayerIndex].nickname !== nickname) {
+        if (room.currentPlayerIndex === undefined || (room.currentPlayerIndex >= 0 && room.players[room.currentPlayerIndex].nickname !== nickname)) {
             logWarning(`stand: not current player's turn (current: ${room.players[room.currentPlayerIndex!]?.nickname}, requested: ${nickname})`);
             return;
         }
