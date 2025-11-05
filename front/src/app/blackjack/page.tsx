@@ -289,10 +289,8 @@ export default function Page() {
         }
 
         function revealDealerCard(card: ApiCard, handValue: HandValue) {
-            // Trigger reveal animation
             setIsRevealingDealerCard(true);
 
-            // Update card after slight delay to let other cards move away
             setTimeout(() => {
                 setDealerHand(prev => [
                     getCard(card),
@@ -301,7 +299,6 @@ export default function Page() {
                 setDealerHandValue(handValue);
             }, 100);
 
-            // Reset reveal state after animation completes
             setTimeout(() => {
                 setIsRevealingDealerCard(false);
             }, 1000);
@@ -314,8 +311,7 @@ export default function Page() {
                 setWorth(newCash);
                 setMyResult(result);
                 setMyWinAmount(winAmount);
-
-                // Clear result after animation
+                
                 setTimeout(() => {
                     setMyResult(undefined);
                     setMyWinAmount(undefined);
