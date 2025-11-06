@@ -129,6 +129,7 @@ io.on('connection', async (socket) => {
     socket.on("disconnect", () => {
         const nickname = socket.data.nickname;
         if (!nickname) {
+            socket.emit("disconnected");
             logWarning("disconnect: no nickname");
             return;
         }
@@ -182,6 +183,7 @@ io.on('connection', async (socket) => {
     socket.on("join room", () => {
         const nickname = socket.data.nickname;
         if (!nickname) {
+            socket.emit("disconnected");
             logWarning("join room: no nickname");
             return;
         }
@@ -277,6 +279,7 @@ io.on('connection', async (socket) => {
     socket.on("change bet", (chipIndex: number, action: "add" | "remove") => {
         const nickname = socket.data.nickname;
         if (!nickname) {
+            socket.emit("disconnected");
             logWarning("change bet: no socket nickname");
             return;
         }
@@ -331,6 +334,7 @@ io.on('connection', async (socket) => {
     socket.on("remove bet", () => {
         const nickname = socket.data.nickname;
         if (!nickname) {
+            socket.emit("disconnected");
             logWarning("remove bet: no socket nickname");
             return;
         }
@@ -362,6 +366,7 @@ io.on('connection', async (socket) => {
     socket.on("repeat bet", () => {
         const nickname = socket.data.nickname;
         if (!nickname) {
+            socket.emit("disconnected");
             logWarning("repeat bet: no socket nickname");
             return;
         }
@@ -404,6 +409,7 @@ io.on('connection', async (socket) => {
     socket.on("double bet", () => {
         const nickname = socket.data.nickname;
         if (!nickname) {
+            socket.emit("disconnected");
             logWarning("double bet: no socket nickname");
             return;
         }
@@ -446,6 +452,7 @@ io.on('connection', async (socket) => {
     socket.on("check", () => {
         const nickname = socket.data.nickname;
         if (!nickname) {
+            socket.emit("disconnected");
             logWarning("check: no socket nickname");
             return;
         }
@@ -495,6 +502,7 @@ io.on('connection', async (socket) => {
     socket.on("hit", async () => {
         const nickname = socket.data.nickname;
         if (!nickname) {
+            socket.emit("disconnected");
             logWarning("hit: no socket nickname");
             return;
         }
@@ -558,6 +566,7 @@ io.on('connection', async (socket) => {
     socket.on("stand", async () => {
         const nickname = socket.data.nickname;
         if (!nickname) {
+            socket.emit("disconnected");
             logWarning("stand: no socket nickname");
             return;
         }

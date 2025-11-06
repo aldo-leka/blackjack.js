@@ -105,6 +105,10 @@ export default function Page() {
 
         socket.emit("join room");
 
+        function disconnected() {
+            setIsConnected(false);
+        }
+
         function joinedRoom(me: ApiPlayer, room: ApiRoom) {
             setWorth(me.cash);
             setPhase(room.phase!);
@@ -398,6 +402,7 @@ export default function Page() {
             };
         }
 
+        socket.on("disconnected", disconnected);
         socket.on("joined room", joinedRoom);
         socket.on("user joined", userJoined);
         socket.on("user reconnected", userReconnected);
@@ -420,6 +425,7 @@ export default function Page() {
         socket.on("player result", playerResult);
 
         return () => {
+            socket.off("disconnected", disconnected);
             socket.off("joined room", joinedRoom);
             socket.off("user joined", userJoined);
             socket.off("user reconnected", userReconnected);
