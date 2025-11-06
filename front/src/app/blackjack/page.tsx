@@ -51,11 +51,6 @@ interface ApiCard {
     suit: string;
 }
 
-// TODO If dealer has blackjack, reveal immediately?
-// if dealer's face up card is a 10, J, Q, K, Ace he checks his
-// face down card, and reveals a blackjack instantly.
-// players don't play their round in that case.
-// only players who also have blackjack push, otherwise lose.
 export default function Page() {
     const { nickname, isHandshakeComplete } = useNickname();
     const [worth, setWorth] = useState<number>();
@@ -73,10 +68,35 @@ export default function Page() {
     const [handValue, setHandValue] = useState<HandValue>();
     const [check, setCheck] = useState<boolean>();
     const [stand, setStand] = useState<boolean>();
-    const [isRevealingDealerCard, setIsRevealingDealerCard] = useState(false);
+    const [isDealerRevealingCard, setIsDealerRevealingCard] = useState(false);
+    const [isDealerCheckingCard, setIsDealerCheckingCard] = useState(false);
+    const [isDealerRevealingBlackjack, setIsDealerRevealingBlackjack] = useState(false);
     const [currentPlayerNickname, setCurrentPlayerNickname] = useState<string>();
     const [myResult, setMyResult] = useState<"win" | "lose" | "push" | "blackjack">();
     const [myWinAmount, setMyWinAmount] = useState<number>();
+    const [isConnected, setIsConnected] = useState(false);
+
+    useEffect(() => {
+        function onConnect() {
+            setIsConnected(true);
+        }
+
+        function onDisconnect() {
+            setIsConnected(false);
+        }
+
+        if (socket.connected) {
+            setIsConnected(true);
+        }
+
+        socket.on("connect", onConnect);
+        socket.on("disconnect", onDisconnect);
+
+        return () => {
+            socket.off("connect", onConnect);
+            socket.off("disconnect", onDisconnect);
+        };
+    }, []);
 
     useEffect(() => {
         if (!isHandshakeComplete) {
@@ -247,6 +267,17 @@ export default function Page() {
             setDealerHandValue(handValue);
         }
 
+        function dealerCheckBlackjack() {
+            console.log(`Dealer is checking for blackjack`);
+            setIsDealerCheckingCard(true);
+            setStatus("Dealer checking for Blackjack");
+
+            setTimeout(() => {
+                setIsDealerCheckingCard(false);
+                setStatus(getStatus(phase!));
+            }, 2000);
+        }
+
         function restart(room: ApiRoom) {
             console.log(`restarting game, room: ${JSON.stringify(room)}`);
             setPhase(room.phase!);
@@ -268,14 +299,18 @@ export default function Page() {
             setStand(false);
             setMyResult(undefined);
             setMyWinAmount(undefined);
+            setIsDealerCheckingCard(false);
+            setIsDealerRevealingCard(false);
         }
 
         function playersTurn(room: ApiRoom) {
+            console.log(`players turn`);
             setPhase(room.phase!);
             setStatus(getStatus(room.phase!));
         }
 
         function playerTurn(player: ApiPlayer) {
+            console.log(`player's ${player.nickname} turn`);
             const isMyTurn = player.nickname === nickname;
             setIsMyTurn(isMyTurn);
             setStatus(getStatus("players_turn", isMyTurn));
@@ -284,12 +319,14 @@ export default function Page() {
         }
 
         function dealerPlays(room: ApiRoom) {
+            console.log(`Dealer plays`);
             setPhase(room.phase!);
             setStatus(getStatus(room.phase!));
         }
 
         function revealDealerCard(card: ApiCard, handValue: HandValue) {
-            setIsRevealingDealerCard(true);
+            console.log(`Revealing dealer's facedown card`);
+            setIsDealerRevealingCard(true);
 
             setTimeout(() => {
                 setDealerHand(prev => [
@@ -300,7 +337,7 @@ export default function Page() {
             }, 100);
 
             setTimeout(() => {
-                setIsRevealingDealerCard(false);
+                setIsDealerRevealingCard(false);
             }, 1000);
         }
 
@@ -311,7 +348,7 @@ export default function Page() {
                 setWorth(newCash);
                 setMyResult(result);
                 setMyWinAmount(winAmount);
-                
+
                 setTimeout(() => {
                     setMyResult(undefined);
                     setMyWinAmount(undefined);
@@ -349,15 +386,15 @@ export default function Page() {
         function getStatus(phase: Phase, isMyTurn: boolean = false) {
             switch (phase) {
                 case "bet":
-                    return "Place your bets";
+                    return "Place bets";
                 case "deal_initial_cards":
-                    return "Dealing initial cards";
+                    return "Dealing cards";
                 case "players_turn":
                     return isMyTurn ? "Play your hand" : "Wait for your turn";
                 case "dealers_turn":
                     return "Waiting for the dealer";
                 case "payout":
-                    return "Payout time";
+                    return "Payout";
             };
         }
 
@@ -374,6 +411,7 @@ export default function Page() {
         socket.on("deal player card", dealPlayerCard);
         socket.on("deal dealer facedown card", dealDealerFacedownCard);
         socket.on("deal dealer card", dealDealerCard);
+        socket.on("dealer check blackjack", dealerCheckBlackjack);
         socket.on("restart", restart);
         socket.on("players turn", playersTurn);
         socket.on("player turn", playerTurn);
@@ -395,6 +433,7 @@ export default function Page() {
             socket.off("deal card", dealPlayerCard);
             socket.off("deal dealer facedown card", dealDealerFacedownCard);
             socket.off("deal dealer card", dealDealerCard);
+            socket.off("dealer check blackjack", dealerCheckBlackjack);
             socket.off("restart", restart);
             socket.off("players turn", playersTurn);
             socket.off("player turn", playerTurn);
@@ -446,7 +485,7 @@ export default function Page() {
     const bustedOrBlackjack = handValue && typeof handValue.value === "number" && handValue.value >= 21;
 
     return (
-        <div className="grid grid-rows-4 grid-cols-2 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
+        <div className="grid grid-rows-4 grid-cols-2 overflow-hidden bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
             <div id="dealer-zone" className="col-span-2">
                 {getDealerComponent()}
             </div>
@@ -888,6 +927,20 @@ export default function Page() {
             <div id="chat" className="col-span-2">
 
             </div>
+
+            <AnimatePresence>
+                {!isConnected && (
+                    <motion.div
+                        initial={{ y: 100, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 100, opacity: 0 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        className="fixed bottom-0 left-0 right-0 bg-red-600 text-white text-center font-semibold z-50"
+                    >
+                        Disconnected. <button onClick={() => window.location.reload()} className="underline hover:text-gray-200">Refresh the page</button> to reconnect.
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 
@@ -923,8 +976,15 @@ export default function Page() {
 
                                 // Calculate position offset when revealing
                                 const baseLeft = index * 16;
-                                const spreadOffset = isRevealingDealerCard && !isFirstCard ? 30 : 0;
+                                const spreadOffset = isDealerRevealingCard && !isFirstCard ? 30 : 0;
                                 const leftPosition = baseLeft + spreadOffset;
+
+                                // Animation for checking the facedown card
+                                const checkingAnimation = isFaceDown && isDealerCheckingCard ? {
+                                    rotateX: [0, -15, -15, 0],
+                                    y: [0, -10, -10, 0],
+                                    scale: [1, 1.05, 1.05, 1]
+                                } : {};
 
                                 return (
                                     <motion.div
@@ -932,7 +992,7 @@ export default function Page() {
                                         className="absolute"
                                         style={{
                                             transformStyle: 'preserve-3d',
-                                            zIndex: isFirstCard && isRevealingDealerCard ? 10 : index
+                                            zIndex: isFirstCard && (isDealerRevealingCard || isDealerCheckingCard) ? 10 : index
                                         }}
                                         initial={{
                                             opacity: 0,
@@ -946,7 +1006,8 @@ export default function Page() {
                                             y: 0,
                                             scale: 1,
                                             rotate: 0,
-                                            left: `${leftPosition}px`
+                                            left: `${leftPosition}px`,
+                                            ...checkingAnimation
                                         }}
                                         transition={{
                                             type: "spring",
@@ -957,7 +1018,22 @@ export default function Page() {
                                                 type: "spring",
                                                 stiffness: 300,
                                                 damping: 25
-                                            }
+                                            },
+                                            rotateX: isDealerCheckingCard ? {
+                                                duration: 2,
+                                                times: [0, 0.3, 0.7, 1],
+                                                ease: "easeInOut"
+                                            } : {},
+                                            y: isDealerCheckingCard ? {
+                                                duration: 2,
+                                                times: [0, 0.3, 0.7, 1],
+                                                ease: "easeInOut"
+                                            } : {},
+                                            scale: isDealerCheckingCard ? {
+                                                duration: 2,
+                                                times: [0, 0.3, 0.7, 1],
+                                                ease: "easeInOut"
+                                            } : {}
                                         }}
                                     >
                                         <AnimatePresence mode="wait" initial={false}>
@@ -1037,7 +1113,7 @@ export default function Page() {
                     transition={{ duration: 0.3 }}
                 >
                     {myResult ? (
-                        <span className={`text-2xl inline-flex items-center gap-1 ${
+                        <span className={`inline-flex items-center gap-1 ${
                             myResult === "win" || myResult === "blackjack"
                                 ? "text-green-400"
                                 : myResult === "lose"
@@ -1048,7 +1124,7 @@ export default function Page() {
                                 <>You won <Currency size={20} />{myWinAmount}!</>
                             )}
                             {myResult === "blackjack" && (
-                                <>BLACKJACK! <Currency size={20} />{myWinAmount}!</>
+                                <>You won <Currency size={20} />{myWinAmount}!</>
                             )}
                             {myResult === "lose" && "You lost"}
                             {myResult === "push" && "Push"}
@@ -1190,7 +1266,7 @@ export default function Page() {
                 {phase === "bet" ?
                     <div className="relative size-42">
                         <AnimatePresence>
-                            {((phase === "bet" && totalTime && timeLeft && !otherPlayer.check) || (isPlayersTurn && totalTime && timeLeft)) && (
+                            {(phase === "bet" && totalTime && timeLeft && !otherPlayer.check) && (
                                 <motion.svg
                                     className="absolute inset-0 -rotate-90"
                                     viewBox="0 0 144 144"

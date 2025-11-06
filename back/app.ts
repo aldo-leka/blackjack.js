@@ -27,7 +27,8 @@ import {
     DEAL_TIME,
     SHORT_WAIT,
     PLAY_TIME,
-    PLAYER_TIMEOUT
+    PLAYER_TIMEOUT,
+    DEALER_CHECK_BLACKJACK_TIME
 } from './util';
 import prisma from './db';
 import { Room } from './models/room';
@@ -678,6 +679,18 @@ async function dealInitialCards(room: Room) {
     await wait(DEAL_TIME);
     logInfo(`dealInitialCards: dealt ${getLoggingCard(card)} to dealer`);
 
+    if (card.value[0] === 10 || card.value.length > 1) {
+        io.to(room.name).emit("dealer check blackjack");
+        await wait(DEALER_CHECK_BLACKJACK_TIME);
+        const handValue = getHandValue(room.dealerHand);
+        if (handValue === 21) {
+            io.to(room.name).emit("reveal dealer card", getCardMap(room.dealerHand![0]), getHandValueDisplay(room.dealerHand));
+            await wait(DEALER_CHECK_BLACKJACK_TIME);
+            await determinePayout(room);
+            return;
+        }
+    }
+
     startPlayerTurns(room);
 }
 
@@ -790,11 +803,10 @@ async function dealerPlays(room: Room) {
 
     logInfo(`dealerPlays: dealer stands at ${dealerValue}`);
     await wait(DEAL_TIME);
-
-    determinePayout(room);
+    await determinePayout(room);
 }
 
-function determinePayout(room: Room) {
+async function determinePayout(room: Room) {
     room.phase = "payout";
 
     const dealerValue = getHandValue(room.dealerHand);
@@ -810,13 +822,13 @@ function determinePayout(room: Room) {
             continue;
         }
 
-        if (!player.bet || player.bet === 0 || !player.hand) {
+        if (!player.bet || player.bet === 0) {
             continue;
         }
 
-        const playerValue = getHandValue(player.hand);
-        const playerBusted = playerValue > 21;
-        const isBlackjack = playerValue === 21 && player.hand.length === 2;
+        const playerHandValue = getHandValue(player.hand);
+        const playerBusted = playerHandValue > 21;
+        const isBlackjack = playerHandValue === 21 && player.hand!.length === 2;
 
         let winAmount = 0;
         let result: "win" | "lose" | "push" | "blackjack" = "lose";
@@ -832,7 +844,7 @@ function determinePayout(room: Room) {
                 result = "win";
                 winAmount = player.bet;
             }
-        } else if (playerValue > dealerValue) {
+        } else if (playerHandValue > dealerValue) {
             if (isBlackjack) {
                 result = "blackjack";
                 winAmount = Math.floor(player.bet * 1.5);
@@ -840,7 +852,7 @@ function determinePayout(room: Room) {
                 result = "win";
                 winAmount = player.bet;
             }
-        } else if (playerValue === dealerValue) {
+        } else if (playerHandValue === dealerValue) {
             result = "push";
             winAmount = 0;
         } else {
@@ -848,7 +860,7 @@ function determinePayout(room: Room) {
             winAmount = -player.bet;
         }
 
-        player.cash! += winAmount;
+        player.cash = Math.max(player.cash! + winAmount, 0);
 
         prisma.tempUser.update({
             where: {
@@ -864,14 +876,13 @@ function determinePayout(room: Room) {
             logError(`Failed to update cash for ${player.nickname}`, err);
         });
 
-        logInfo(`determinePayout: ${player.nickname} - ${result} (value: ${playerValue}, bet: ${player.bet}, win: ${winAmount}, new cash: ${player.cash})`);
+        logInfo(`determinePayout: ${player.nickname} ${result} (hand value: ${playerHandValue}, bet: ${player.bet}, won: ${winAmount}, new cash: ${player.cash})`);
 
         io.to(room.name).emit("player result", player.nickname, result, winAmount, player.cash);
     }
 
-    setTimeout(() => {
-        restartGame(room);
-    }, 5000);
+    await wait(SHORT_WAIT);
+    restartGame(room);
 }
 
 function restartGame(room: Room) {
