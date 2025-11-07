@@ -28,8 +28,13 @@ export type Card = {
 };
 
 export type HandValue = {
-    value: { low: number; high: number } | number;
-    status: "Blackjack!" | "Bust!" | null;
+  value: { low: number; high: number } | number;
+  status: "Blackjack!" | "Bust!" | null;
+}
+
+export type HandResult = {
+  winnings: number;
+  result: string;
 }
 
 export const DECK: Card[] = [

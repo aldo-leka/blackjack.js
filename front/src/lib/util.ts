@@ -18,6 +18,11 @@ export type HandValue = {
     status: "Blackjack!" | "Bust!" | null;
 }
 
+export type HandResult = {
+    winnings: number;
+    result: string;
+}
+
 export const DECK: Card[] = [
     { rank: "A", suit: "spades", imageUrl: "/images/ace_of_spades.png", alt: "Ace of Spades playing card" },
     { rank: "2", suit: "spades", imageUrl: "/images/2_of_spades.png", alt: "Two of Spades playing card" },

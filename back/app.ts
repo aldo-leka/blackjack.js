@@ -28,7 +28,8 @@ import {
     SHORT_WAIT,
     PLAY_TIME,
     PLAYER_TIMEOUT,
-    DEALER_CHECK_BLACKJACK_TIME
+    DEALER_CHECK_BLACKJACK_TIME,
+    HandResult
 } from './util';
 import prisma from './db';
 import { Room } from './models/room';
@@ -126,7 +127,7 @@ io.on('connection', async (socket) => {
         socket.emit('nickname accepted');
     });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
         const nickname = socket.data.nickname;
         if (!nickname) {
             socket.emit("disconnected");
@@ -144,7 +145,7 @@ io.on('connection', async (socket) => {
             socket.to(user.roomName).emit("user disconnected", nickname);
         }
 
-        const timeoutId = setTimeout(() => {
+        const timeoutId = setTimeout(async () => {
             clearTimeout(user.disconnectedTimer);
 
             const countryCode = user.countryCode;
@@ -159,13 +160,14 @@ io.on('connection', async (socket) => {
 
                 if (wasCurrentPlayer) {
                     clearInterval(room.timer);
-                    nextPlayer(room);
+                    await nextPlayer(room);
                 }
 
                 if (room.players.length === 0) {
                     clearInterval(room.timer);
                     rooms.delete(room.name);
-                } else {
+                }
+                else {
                     io.to(room.name).emit("user removed", nickname);
                 }
             }
@@ -231,34 +233,17 @@ io.on('connection', async (socket) => {
         socket.join(roomFoundName);
 
         if (!roomFound) {
-            const timer = setInterval(() => {
-                const room = rooms.get(roomFoundName);
-                if (room) {
-                    room.timeLeft!--;
-                    io.to(roomFoundName).emit("timer update", room.timeLeft, BET_TIME);
-
-                    if (room.timeLeft! <= 0) {
-                        room.timeLeft = 0;
-                        clearInterval(timer);
-                        dealInitialCards(room);
-                    }
-                }
-            }, 1000);
-
             rooms.set(roomFoundName, {
                 name: roomFoundName,
                 players: [user],
-                timer,
-                timeLeft: BET_TIME,
-                phase: "bet"
+                phase: "bet",
+                shoe: buildShoe(),
+                cardsDealt: 0,
+                needsReshuffle: false,
             });
 
-            socket.emit("timer update", BET_TIME, BET_TIME);
-
             const room = rooms.get(roomFoundName)!;
-            room.shoe = buildShoe();
-            room.cardsDealt = 0;
-            room.needsReshuffle = false;
+            setRoomTimer(room, BET_TIME, async () => await dealInitialCards(room));
         }
         else {
             const room = rooms.get(roomFoundName)!;
@@ -529,37 +514,62 @@ io.on('connection', async (socket) => {
             return;
         }
 
-        if (!user.hand) {
-            logWarning(`hit: no hand for user '${nickname}'`);
-            return;
+        if (user.currentHand === 0) {
+            if (!user.hand) {
+                logWarning(`hit: no hand for user '${nickname}'`);
+                return;
+            }
+
+            if (user.stand === true) {
+                logWarning(`hit: user '${nickname}' is standing`);
+                return;
+            }
+
+            const handValue = getHandValue(user.hand);
+            if (handValue >= 21) {
+                logWarning(`hit: user '${nickname}' has already 21 or busted, hand value: ${handValue}`);
+                return;
+            }
         }
 
-        if (user.stand === true) {
-            logWarning(`hit: user '${nickname}' is standing`);
-            return;
-        }
+        if (user.currentHand === 1) {
+            if (!user.hand2) {
+                logWarning(`hit: no hand for user '${nickname}'`);
+                return;
+            }
 
-        let handValue = getHandValue(user.hand);
-        if (handValue >= 21) {
-            logWarning(`hit: user '${nickname}' has already 21 or busted, hand value: ${handValue}`);
-            return;
+            if (user.stand2 === true) {
+                logWarning(`hit: user '${nickname}' is standing`);
+                return;
+            }
+
+            const handValue = getHandValue(user.hand2);
+            if (handValue >= 21) {
+                logWarning(`hit: user '${nickname}' has already 21 or busted, hand value: ${handValue}`);
+                return;
+            }
         }
 
         const card = dealCard(room);
-        user.hand.push(card);
+        if (user.currentHand === 0) {
+            user.hand!.push(card);
+        }
+        else {
+            user.hand2!.push(card);
+        }
 
         io.to(room.name).emit("deal player card", getUserMap(user), getCardMap(card));
         logInfo(`hit: dealt ${getLoggingCard(card)} to ${nickname}`);
 
-        handValue = getHandValue(user.hand);
+        const handValue = getHandValue(user.currentHand === 0 ? user.hand : user.hand2);
         if (handValue > 21) {
-            logInfo(`hit: ${nickname} busted with ${handValue}`);
-            await wait(2);
-            nextPlayer(room);
+            logInfo(`hit: ${nickname} busted with ${handValue} with current hand: ${user.currentHand}`);
+            await wait(SHORT_WAIT);
+            await nextPlayer(room);
         } else if (handValue === 21) {
-            logInfo(`hit: ${nickname} reached 21`);
-            await wait(2);
-            nextPlayer(room);
+            logInfo(`hit: ${nickname} reached 21 with current hand: ${user.currentHand}`);
+            await wait(SHORT_WAIT);
+            await nextPlayer(room);
         }
     });
 
@@ -593,14 +603,190 @@ io.on('connection', async (socket) => {
             return;
         }
 
-        if (user.stand === true) {
+        if (user.currentHand === 0 && user.stand === true) {
             logWarning(`stand: '${nickname}' is already marked as stand`);
             return;
         }
 
+        if (user.currentHand === 1 && user.stand2 === true) {
+            logWarning(`stand: '${nickname}' is already marked as stand 2`);
+            return;
+        }
+
         user.stand = true;
+        if (user.currentHand === 1) {
+            user.stand2 = true;
+        }
+
         logInfo(`stand: ${nickname} stands with ${getHandValue(user.hand)}`);
-        nextPlayer(room);
+        await nextPlayer(room);
+    });
+
+    socket.on("split", async () => {
+        const nickname = socket.data.nickname;
+        if (!nickname) {
+            socket.emit("disconnected");
+            logWarning("split: no socket nickname");
+            return;
+        }
+
+        const user = users.get(nickname);
+        if (!user) {
+            logWarning(`split: no user for nickname '${nickname}'`);
+            return;
+        }
+
+        if (!user.roomName) {
+            logWarning(`split: no room for user '${nickname}'`);
+            return;
+        }
+
+        const room = user.room!;
+        if (room.phase !== "players_turn") {
+            logWarning(`split: room is not in players_turn phase`);
+            return;
+        }
+
+        if (room.currentPlayerIndex === undefined || (room.currentPlayerIndex >= 0 && room.players[room.currentPlayerIndex].nickname !== nickname)) {
+            logWarning(`split: not current player's turn (current: ${room.players[room.currentPlayerIndex!]?.nickname}, requested: ${nickname})`);
+            return;
+        }
+
+        if (user.stand === true) {
+            logWarning(`split: '${nickname}' is already marked as stand`);
+            return;
+        }
+
+        if (!user.hand || user.hand.length < 2) {
+            logWarning(`split: '${nickname}' doesn't have a valid hand`);
+            return;
+        }
+
+        if (user.hand[0].rank !== user.hand[1].rank) {
+            logWarning(`split: '${nickname}' can't split as the ranks are not the same`);
+            return;
+        }
+
+        if (user.hand2 !== undefined) {
+            logWarning(`split: '${nickname}' already has splitted`);
+            return;
+        }
+
+        if (user.bet! > user.cash!) {
+            logWarning(`split: '${nickname}' doesn't have enough cash to cover the split`);
+            return;
+        }
+
+        const card1 = user.hand[0];
+        const card2 = user.hand[1];
+        const isAceSplit = card1.rank === "A";
+
+        user.hand = [card1];
+        user.hand2 = [card2];
+        user.currentHand = 0;
+        user.cash! -= user.bet!;
+        user.bet2 = user.bet;
+
+        logInfo(`split: ${nickname} splitted ${isAceSplit ? 'Aces' : card1.rank + 's'}`);
+        io.to(room.name).emit("user splitted", getUserMap(user));
+
+        if (isAceSplit) {
+            await wait(SHORT_WAIT);
+            const handCard2 = dealCard(room);
+            user.hand.push(handCard2);
+            user.stand = true;
+            io.to(room.name).emit("deal player card", getUserMap(user), getCardMap(handCard2));
+            logInfo(`split aces: dealt ${getLoggingCard(handCard2)} to ${nickname}'s first hand`);
+
+            await wait(DEAL_TIME);
+
+            user.currentHand = 1;
+            const hand2Card2 = dealCard(room);
+            user.hand2.push(hand2Card2);
+            user.stand2 = true;
+            io.to(room.name).emit("deal player card", getUserMap(user), getCardMap(hand2Card2));
+            logInfo(`split aces: dealt ${getLoggingCard(hand2Card2)} to ${nickname}'s second hand`);            
+
+            await wait(SHORT_WAIT);
+            await nextPlayer(room);
+        }
+        else {
+            setRoomTimer(room, PLAY_TIME, async () => await nextPlayer(room));
+        }
+    });
+
+    socket.on("double", async () => {
+        const nickname = socket.data.nickname;
+        if (!nickname) {
+            socket.emit("disconnected");
+            logWarning("double: no socket nickname");
+            return;
+        }
+
+        const user = users.get(nickname);
+        if (!user) {
+            logWarning(`double: no user for nickname '${nickname}'`);
+            return;
+        }
+
+        if (!user.roomName) {
+            logWarning(`double: no room for user '${nickname}'`);
+            return;
+        }
+
+        const room = user.room!;
+        if (room.phase !== "players_turn") {
+            logWarning(`double: room is not in players_turn phase`);
+            return;
+        }
+
+        if (room.currentPlayerIndex === undefined || (room.currentPlayerIndex >= 0 && room.players[room.currentPlayerIndex].nickname !== nickname)) {
+            logWarning(`double: not current player's turn (current: ${room.players[room.currentPlayerIndex!]?.nickname}, requested: ${nickname})`);
+            return;
+        }
+
+        if (user.currentHand === 0 && user.hand!.length !== 2) {
+            logWarning(`double: '${nickname}' can only double on initial 2-card hand`);
+            return;
+        }
+
+        if (user.currentHand === 1 && user.hand2!.length !== 2) {
+            logWarning(`double: '${nickname}' can only double on initial 2-card hand (hand2)`);
+            return;
+        }
+
+        if (user.currentHand === 0 && user.stand === true) {
+            logWarning(`double: '${nickname}' has already stood`);
+            return;
+        }
+
+        if (user.currentHand === 1 && user.stand2 === true) {
+            logWarning(`double: '${nickname}' has already stood on hand2`);
+            return;
+        }
+
+        const betToDouble = user.currentHand === 1 ? user.bet2! : user.bet!;
+        if (betToDouble > user.cash!) {
+            logWarning(`double: '${nickname}' doesn't have enough cash to cover the double`);
+            return;
+        }
+
+        user.cash! -= betToDouble;
+        const card = dealCard(room);
+        if (user.currentHand === 1) {
+            user.bet2! *= 2;
+            user.hand2!.push(card);
+            user.stand2 = true;
+        }
+        else {
+            user.bet! *= 2;
+            user.hand!.push(card);
+            user.stand = true;
+        }
+
+        io.to(room.name).emit("deal player card", getUserMap(user), getCardMap(card));
+        await wait(SHORT_WAIT);
+        await nextPlayer(room);
     });
 });
 
@@ -625,10 +811,19 @@ async function dealInitialCards(room: Room) {
         room.needsReshuffle = false;
     }
 
+    // Confirm (deduct) the bets
+    room.players.forEach(player => {
+        if (player.bet && player.bet > 0) {
+            player.cash = Math.max(player.cash! - player.bet, 0);
+            player.currentHand = 0;
+        }
+    });
+
     room.phase = "deal_initial_cards";
     io.to(room.name).emit("deal initial cards", getRoomMap(room));
 
     let anyPlayerBet = false;
+
     // Create a copy of players array to avoid issues if players are removed during iteration
     const playersCopy = [...room.players];
     for (const player of playersCopy) {
@@ -646,6 +841,7 @@ async function dealInitialCards(room: Room) {
             }
 
             const card = dealCard(room);
+            // const card = { rank: "4", suit: "spades", value: [4] };
             player.hand = [card];
             io.to(room.name).emit("deal player card", getUserMap(player), getCardMap(card));
             await wait(DEAL_TIME);
@@ -673,6 +869,7 @@ async function dealInitialCards(room: Room) {
 
         if (player.bet && player.bet > 0) {
             const card = dealCard(room);
+            // const card = { rank: "4", suit: "spades", value: [4] };
             player.hand!.push(card);
             io.to(room.name).emit("deal player card", getUserMap(player), getCardMap(card));
 
@@ -681,6 +878,8 @@ async function dealInitialCards(room: Room) {
             await wait(DEAL_TIME);
         }
     };
+
+    // TODO Pay out the players who have blackjack directly!
 
     card = dealCard(room);
     room.dealerHand.push(card);
@@ -709,8 +908,7 @@ async function startPlayerTurns(room: Room) {
     io.to(room.name).emit("players turn", getRoomMap(room));
 
     await wait(SHORT_WAIT);
-
-    nextPlayer(room);
+    await nextPlayer(room);
 }
 
 async function nextPlayer(room: Room) {
@@ -718,6 +916,18 @@ async function nextPlayer(room: Room) {
 
     if (!rooms.has(room.name)) {
         return;
+    }
+
+    // first deal with the player's split situation
+    if (room.currentPlayerIndex! >= 0) {
+        const currentPlayer = room.players[room.currentPlayerIndex!];
+        if (currentPlayer.hand2 && currentPlayer.currentHand === 0) {
+            currentPlayer.currentHand = 1;
+            currentPlayer.stand = true;
+            io.to(room.name).emit("player turn", getUserMap(currentPlayer));
+            setRoomTimer(room, PLAY_TIME, async () => await nextPlayer(room));
+            return;
+        }
     }
 
     let nextPlayerIndex = -1;
@@ -741,29 +951,15 @@ async function nextPlayer(room: Room) {
     if (handValue === 21 && currentPlayer.hand!.length === 2) {
         logInfo(`nextPlayer: ${currentPlayer.nickname} has blackjack!`);
         currentPlayer.stand = true;
+        // TODO Payout player who has blackjack directly? and move onto the next player.
         io.to(room.name).emit("player turn", getUserMap(currentPlayer));
         await wait(SHORT_WAIT);
-        nextPlayer(room);
+        await nextPlayer(room);
         return;
     }
 
     io.to(room.name).emit("player turn", getUserMap(currentPlayer));
-
-    room.timeLeft = PLAY_TIME;
-    room.timer = setInterval(() => {
-        room.timeLeft!--;
-        io.to(room.name).emit("timer update", room.timeLeft, PLAY_TIME);
-
-        if (room.timeLeft! <= 0) {
-            room.timeLeft = 0;
-            clearInterval(room.timer);
-            currentPlayer.stand = true;
-            logInfo(`nextPlayer: ${currentPlayer.nickname} timed out, auto-standing`);
-            nextPlayer(room);
-        }
-    }, 1000);
-
-    io.to(room.name).emit("timer update", PLAY_TIME, PLAY_TIME);
+    setRoomTimer(room, PLAY_TIME, async () => await nextPlayer(room));
 }
 
 async function dealerPlays(room: Room) {
@@ -777,7 +973,10 @@ async function dealerPlays(room: Room) {
 
     // Check if any players are still in the game (not busted)
     const activePlayers = room.players.filter(player =>
-        player.bet && player.bet > 0 && getHandValue(player.hand) <= 21
+        player.bet && player.bet > 0 && (
+            getHandValue(player.hand) <= 21 ||
+            (player.hand2 && getHandValue(player.hand2) <= 21)
+        )
     );
 
     // If all players busted, no need for dealer to play
@@ -835,41 +1034,22 @@ async function determinePayout(room: Room) {
             continue;
         }
 
-        const playerHandValue = getHandValue(player.hand);
-        const playerBusted = playerHandValue > 21;
-        const isBlackjack = playerHandValue === 21 && player.hand!.length === 2;
-
-        let winAmount = 0;
-        let result: "win" | "lose" | "push" | "blackjack" = "lose";
-
-        if (playerBusted) {
-            result = "lose";
-            winAmount = -player.bet;
-        } else if (dealerBusted) {
-            if (isBlackjack) {
-                result = "blackjack";
-                winAmount = Math.floor(player.bet * 1.5); // Blackjack pays 3:2
-            } else {
-                result = "win";
-                winAmount = player.bet;
-            }
-        } else if (playerHandValue > dealerValue) {
-            if (isBlackjack) {
-                result = "blackjack";
-                winAmount = Math.floor(player.bet * 1.5);
-            } else {
-                result = "win";
-                winAmount = player.bet;
-            }
-        } else if (playerHandValue === dealerValue) {
-            result = "push";
-            winAmount = 0;
-        } else {
-            result = "lose";
-            winAmount = -player.bet;
+        let totalChange = 0;
+        let totalWinnings = 0;
+        let hand1Result = getHandResult(player.hand!, dealerValue, dealerBusted, player.bet, !!player.hand2);
+        let hand2Result = undefined;
+        totalChange += hand1Result.change;
+        totalWinnings += hand1Result.winnings;
+        if (player.hand2) {
+            hand2Result = getHandResult(player.hand2, dealerValue, dealerBusted, player.bet2!, !!player.hand2);
+            totalChange += hand2Result.change;
+            totalWinnings += hand2Result.winnings;
         }
 
-        player.cash = Math.max(player.cash! + winAmount, 0);
+        player.cash = Math.max(player.cash! + totalChange, 0);
+        player.winningsThisRound = totalWinnings;
+        player.handResult = hand1Result;
+        player.hand2Result = hand2Result;
 
         prisma.tempUser.update({
             where: {
@@ -885,13 +1065,60 @@ async function determinePayout(room: Room) {
             logError(`Failed to update cash for ${player.nickname}`, err);
         });
 
-        logInfo(`determinePayout: ${player.nickname} ${result} (hand value: ${playerHandValue}, bet: ${player.bet}, won: ${winAmount}, new cash: ${player.cash})`);
-
-        io.to(room.name).emit("player result", player.nickname, result, winAmount, player.cash);
+        logInfo(`determinePayout: ${player.nickname} (bet: ${player.bet}, won: ${totalWinnings}, new cash: ${player.cash})`);
     }
 
+    io.to(room.name).emit("player result", getRoomMap(room));
     await wait(SHORT_WAIT);
+
     restartGame(room);
+}
+
+function getHandResult(hand: Card[], dealerValue: number, dealerBusted: boolean, bet: number, splitted: boolean) {
+    const handValue = getHandValue(hand);
+    const playerBusted = handValue > 21;
+    const isBlackjack = handValue === 21 && hand.length === 2 && !splitted;
+
+    let change = 0;
+    let winnings = 0;
+    let result: "win" | "lose" | "push" | "blackjack" = "lose";
+
+    if (playerBusted) {
+        result = "lose";
+        winnings = -bet;
+    }
+    else if (dealerBusted) {
+        if (isBlackjack) {
+            result = "blackjack";
+            change = Math.ceil(bet * 2.5);
+            winnings = Math.ceil(bet * 1.5);
+        } else {
+            result = "win";
+            change = bet * 2;
+            winnings = bet;
+        }
+    }
+    else if (handValue > dealerValue) {
+        if (isBlackjack) {
+            result = "blackjack";
+            change = Math.ceil(bet * 2.5);
+            winnings = Math.ceil(bet * 1.5);
+        } else {
+            result = "win";
+            change = bet * 2;
+            winnings = bet;
+        }
+    }
+    else if (handValue === dealerValue) {
+        result = "push";
+        change = bet;
+    }
+    else {
+        result = "lose";
+        winnings = -bet;
+    }
+
+    return { change, winnings, result };
 }
 
 function restartGame(room: Room) {
@@ -901,30 +1128,42 @@ function restartGame(room: Room) {
 
     room.players.forEach(player => {
         player.bet = undefined;
+        player.bet2 = undefined;
         player.check = undefined;
         player.stand = undefined;
+        player.stand2 = undefined;
         player.hand = undefined;
+        player.hand2 = undefined;
+        player.currentHand = undefined;
+        player.winningsThisRound = undefined;
+        player.handResult = undefined;
+        player.hand2Result = undefined;
     });
 
     room.dealerHand = undefined;
-    clearInterval(room.timer);
-    room.timeLeft = BET_TIME;
     room.phase = "bet";
 
     io.to(room.name).emit("restart", getRoomMap(room));
 
+    setRoomTimer(room, BET_TIME, async () => await dealInitialCards(room));
+}
+
+async function setRoomTimer(room: Room, totalTime: number, next: () => void) {
+    clearInterval(room.timer);
+
+    room.timeLeft = totalTime;
     room.timer = setInterval(() => {
         room.timeLeft!--;
-        io.to(room.name).emit("timer update", room.timeLeft, BET_TIME);
+        io.to(room.name).emit("timer update", room.timeLeft, totalTime);
 
         if (room.timeLeft! <= 0) {
             room.timeLeft = 0;
             clearInterval(room.timer);
-            dealInitialCards(room);
+            next();
         }
     }, 1000);
 
-    io.to(room.name).emit("timer update", BET_TIME, BET_TIME);
+    io.to(room.name).emit("timer update", totalTime, totalTime);
 }
 
 function dealCard(room: Room) {
@@ -1004,11 +1243,24 @@ function getUserMap(user: UserData) {
         countryCode: user.countryCode,
         cash: user.cash,
         bet: user.bet,
+        bet2: user.bet2,
+        totalBet: user.bet
+            ? user.bet2
+                ? user.bet + user.bet2
+                : user.bet
+            : undefined,
         betBefore: user.betBefore,
         check: user.check,
         stand: user.stand,
+        stand2: user.stand2,
         hand: user.hand?.map(c => getCardMap(c)),
+        hand2: user.hand2?.map(c => getCardMap(c)),
         handValue: getHandValueDisplay(user.hand),
+        hand2Value: getHandValueDisplay(user.hand2),
+        currentHand: user.currentHand,
+        winningsThisRound: user.winningsThisRound,
+        handResult: user.handResult,
+        hand2Result: user.hand2Result,
         disconnected: user.disconnected,
     }
 }

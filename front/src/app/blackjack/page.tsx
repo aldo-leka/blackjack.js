@@ -5,7 +5,7 @@ import { socket } from "@/lib/socket";
 import { Check, Currency, Hand, Plus, Repeat, Split, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
-import { Card, CHIPS, DECK, HandValue } from "@/lib/util";
+import { Card, CHIPS, DECK, HandResult, HandValue } from "@/lib/util";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -14,11 +14,20 @@ interface Player {
     countryCode: string;
     worth: number;
     bet?: number;
+    bet2?: number;
+    totalBet?: number;
     betBefore?: number;
     check?: boolean;
     stand?: boolean;
+    stand2?: boolean;
     hand?: Card[];
+    hand2?: Card[];
     handValue?: HandValue;
+    hand2Value?: HandValue;
+    currentHand?: number;
+    winningsThisRound?: number;
+    handResult?: HandResult;
+    hand2Result?: HandResult;
     disconnected: boolean;
 };
 
@@ -27,11 +36,20 @@ interface ApiPlayer {
     countryCode: string;
     cash?: number;
     bet?: number;
+    bet2?: number;
+    totalBet?: number;
     betBefore?: number;
     check?: boolean;
     stand?: boolean;
-    hand?: ApiCard[]
+    stand2?: boolean;
+    hand?: ApiCard[];
+    hand2?: ApiCard[];
     handValue: HandValue;
+    hand2Value: HandValue;
+    currentHand?: number;
+    winningsThisRound?: number;
+    handResult?: HandResult;
+    hand2Result?: HandResult;
     disconnected: boolean;
 }
 
@@ -55,25 +73,31 @@ export default function Page() {
     const { nickname, isHandshakeComplete } = useNickname();
     const [worth, setWorth] = useState<number>();
     const [bet, setBet] = useState<number>();
+    const [bet2, setBet2] = useState<number>();
+    const [totalBet, setTotalBet] = useState<number>();
     const [betBefore, setBetBefore] = useState<number>();
     const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
     const [timeLeft, setTimeLeft] = useState<number>();
     const [totalTime, setTotalTime] = useState<number>();
     const [phase, setPhase] = useState<Phase>();
     const [hand, setHand] = useState<Card[]>([]);
+    const [hand2, setHand2] = useState<Card[]>([]);
     const [dealerHand, setDealerHand] = useState<Card[]>([]);
     const [dealerHandValue, setDealerHandValue] = useState<HandValue>();
     const [status, setStatus] = useState("");
     const [isMyTurn, setIsMyTurn] = useState(false);
     const [handValue, setHandValue] = useState<HandValue>();
+    const [hand2Value, setHand2Value] = useState<HandValue>();
     const [check, setCheck] = useState<boolean>();
     const [stand, setStand] = useState<boolean>();
+    const [stand2, setStand2] = useState<boolean>();
+    const [currentHand, setCurrentHand] = useState<number>();
     const [isDealerRevealingCard, setIsDealerRevealingCard] = useState(false);
     const [isDealerCheckingCard, setIsDealerCheckingCard] = useState(false);
-    const [isDealerRevealingBlackjack, setIsDealerRevealingBlackjack] = useState(false);
     const [currentPlayerNickname, setCurrentPlayerNickname] = useState<string>();
-    const [myResult, setMyResult] = useState<"win" | "lose" | "push" | "blackjack">();
-    const [myWinAmount, setMyWinAmount] = useState<number>();
+    const [handResult, setHandResult] = useState<HandResult>();
+    const [hand2Result, setHand2Result] = useState<HandResult>();
+    const [totalWinnings, setTotalWinnings] = useState<number>();
     const [isConnected, setIsConnected] = useState(false);
 
     useEffect(() => {
@@ -106,6 +130,7 @@ export default function Page() {
         socket.emit("join room");
 
         function disconnected() {
+            console.log(`disconnected`);
             setIsConnected(false);
         }
 
@@ -174,7 +199,7 @@ export default function Page() {
             setOtherPlayers(prev =>
                 prev.map(player =>
                     player.nickname === username
-                        ? { ...player, bet }
+                        ? { ...player, totalBet: bet }
                         : player
                 )
             );
@@ -198,6 +223,8 @@ export default function Page() {
 
             setWorth(me.cash);
             setBet(me.bet);
+            setBet2(me.bet2);
+            setTotalBet(me.totalBet);
             setBetBefore(me.betBefore);
             setOtherPlayers(otherPlayers);
             setPhase(room.phase!);
@@ -209,7 +236,7 @@ export default function Page() {
             setDealerHand(room.dealerHand?.map(c => getCard(c)) ?? []);
             setHandValue(me.handValue);
 
-            console.log(`alreadyInRoom: cash: ${me.cash}, bet: ${me.bet}, other players: ${JSON.stringify(otherPlayers)}`);
+            console.log(`alreadyInRoom: cash: ${me.cash}, total bet: ${me.totalBet}, other players: ${JSON.stringify(otherPlayers)}`);
         }
 
         function timerUpdate(timeLeft: number, totalTime: number) {
@@ -220,34 +247,52 @@ export default function Page() {
         function dealInitialCards(room: ApiRoom) {
             setPhase(room.phase!);
             setStatus(getStatus(room.phase!));
+            const me = getPlayerMap(room.players.find(p => p.nickname === nickname)!);
+            console.log(`dealInitialCards: deducting bets`);
+
+            const otherPlayers = room.players
+                .filter(p => p.nickname !== nickname)
+                .map(p => getPlayerMap(p));
+
+            setOtherPlayers(otherPlayers);
+            setWorth(me.worth);
+
         }
 
         function dealPlayerCard(player: ApiPlayer, card: ApiCard) {
             console.log(`dealPlayerCard: for ${player.nickname}, card: ${JSON.stringify(card)}`);
 
             if (player.nickname === nickname) {
-                setHand(prev => [
-                    ...prev,
-                    getCard(card)
-                ]);
+                if (player.currentHand === 0) {
+                    setHand(prev => [
+                        ...prev,
+                        getCard(card)
+                    ]);
+                    setHandValue(player.handValue);
+                }
+                else {
+                    setHand2(prev => [
+                        ...prev,
+                        getCard(card)
+                    ]);
+                    setHand2Value(player.hand2Value);
+                }
 
-                setHandValue(player.handValue);
+                setWorth(player.cash);
+                setBet(player.bet);
+                setBet2(player.bet2);
+                setTotalBet(player.totalBet);
+                setStand(player.stand);
+                setStand2(player.stand2);
                 setBetBefore(player.betBefore);
-
+                setCurrentHand(player.currentHand);
                 return;
             }
 
             setOtherPlayers(prev =>
                 prev.map(p =>
                     p.nickname === player.nickname
-                        ? {
-                            ...p,
-                            hand: [
-                                ...(p.hand || []),
-                                getCard(card)
-                            ],
-                            handValue: player.handValue
-                        }
+                        ? getPlayerMap(player)
                         : p
                 )
             );
@@ -294,15 +339,22 @@ export default function Page() {
             setOtherPlayers(otherPlayers);
 
             setBet(undefined);
+            setBet2(undefined);
+            setTotalBet(undefined);
             setHand([]);
+            setHand2([]);
             setHandValue(undefined);
+            setHand2Value(undefined);
+            setCurrentHand(undefined);
             setDealerHand([]);
             setDealerHandValue(undefined);
             setIsMyTurn(false);
             setCheck(false);
             setStand(false);
-            setMyResult(undefined);
-            setMyWinAmount(undefined);
+            setStand2(false);
+            setHandResult(undefined);
+            setHand2Result(undefined);
+            setTotalWinnings(undefined);
             setIsDealerCheckingCard(false);
             setIsDealerRevealingCard(false);
         }
@@ -318,8 +370,20 @@ export default function Page() {
             const isMyTurn = player.nickname === nickname;
             setIsMyTurn(isMyTurn);
             setStatus(getStatus("players_turn", isMyTurn));
-            setStand(player.stand);
             setCurrentPlayerNickname(player.nickname);
+
+            if (isMyTurn) {
+                setCurrentHand(player.currentHand);
+                return;
+            }
+
+            setOtherPlayers(prev =>
+                prev.map(p =>
+                    p.nickname === player.nickname
+                        ? getPlayerMap(player)
+                        : p
+                )
+            );
         }
 
         function dealerPlays(room: ApiRoom) {
@@ -331,6 +395,7 @@ export default function Page() {
         function revealDealerCard(card: ApiCard, handValue: HandValue) {
             console.log(`Revealing dealer's facedown card`);
             setIsDealerRevealingCard(true);
+            setIsMyTurn(false);
 
             setTimeout(() => {
                 setDealerHand(prev => [
@@ -345,27 +410,49 @@ export default function Page() {
             }, 1000);
         }
 
-        function playerResult(playerNickname: string, result: "win" | "lose" | "push" | "blackjack", winAmount: number, newCash: number) {
-            console.log(`playerResult: ${playerNickname} ${result} with amount ${winAmount}, new cash: ${newCash}`);
+        function playerSplitted(player: ApiPlayer) {
+            console.log(`playerSplitted: ${JSON.stringify(player)}`);
 
-            if (playerNickname === nickname) {
-                setWorth(newCash);
-                setMyResult(result);
-                setMyWinAmount(winAmount);
-
-                setTimeout(() => {
-                    setMyResult(undefined);
-                    setMyWinAmount(undefined);
-                }, 3000);
-            } else {
-                setOtherPlayers(prev =>
-                    prev.map(p =>
-                        p.nickname === playerNickname
-                            ? { ...p, worth: newCash }
-                            : p
-                    )
-                );
+            if (player.nickname === nickname) {
+                setWorth(player.cash);
+                setBet(player.bet);
+                setBet2(player.bet2);
+                setTotalBet(player.totalBet);
+                setHand(player.hand?.map(c => getCard(c)) ?? []);
+                setHandValue(player.handValue);
+                setHand2(player.hand2?.map(c => getCard(c)) ?? []);
+                setHand2Value(player.hand2Value);
+                setCurrentHand(player.currentHand);
+                return;
             }
+
+            setOtherPlayers(prev =>
+                prev.map(p =>
+                    p.nickname === player.nickname
+                        ? getPlayerMap(player)
+                        : p
+                )
+            );
+        }
+
+        function playerResult(room: ApiRoom) {
+            const me = getPlayerMap(room.players.find(p => p.nickname === nickname)!);
+            console.log(`playerResult: ${me.handResult}, ${me.hand2Result}`);
+
+            const otherPlayers = room.players
+                .filter(p => p.nickname !== nickname)
+                .map(p => getPlayerMap(p));
+
+            setWorth(me.worth);
+            setOtherPlayers(otherPlayers);
+            setHandResult(me.handResult);
+            setHand2Result(me.hand2Result);
+            setTotalWinnings(me.winningsThisRound);
+            setTimeout(() => {
+                setHandResult(undefined);
+                setHand2Result(undefined);
+                setTotalWinnings(undefined);
+            }, 3000);
         }
 
         function getPlayerMap(player: ApiPlayer) {
@@ -374,11 +461,20 @@ export default function Page() {
                 countryCode: player.countryCode,
                 worth: player.cash!,
                 bet: player.bet,
+                bet2: player.bet2,
+                totalBet: player.totalBet,
                 betBefore: player.betBefore,
                 check: player.check,
                 stand: player.stand,
+                stand2: player.stand2,
                 hand: player.hand?.map(c => getCard(c)),
+                hand2: player.hand2?.map(c => getCard(c)),
                 handValue: player.handValue,
+                hand2Value: player.hand2Value,
+                currentHand: player.currentHand,
+                winningsThisRound: player.winningsThisRound,
+                handResult: player.handResult,
+                hand2Result: player.hand2Result,
                 disconnected: player.disconnected,
             };
         }
@@ -422,6 +518,7 @@ export default function Page() {
         socket.on("player turn", playerTurn);
         socket.on("dealer plays", dealerPlays);
         socket.on("reveal dealer card", revealDealerCard);
+        socket.on("user splitted", playerSplitted);
         socket.on("player result", playerResult);
 
         return () => {
@@ -436,7 +533,7 @@ export default function Page() {
             socket.off("already in room", alreadyInRoom);
             socket.off("timer update", timerUpdate);
             socket.off("deal initial cards", dealInitialCards);
-            socket.off("deal card", dealPlayerCard);
+            socket.off("deal player card", dealPlayerCard);
             socket.off("deal dealer facedown card", dealDealerFacedownCard);
             socket.off("deal dealer card", dealDealerCard);
             socket.off("dealer check blackjack", dealerCheckBlackjack);
@@ -445,15 +542,16 @@ export default function Page() {
             socket.off("player turn", playerTurn);
             socket.off("dealer plays", dealerPlays);
             socket.off("reveal dealer card", revealDealerCard);
+            socket.off("user splitted", playerSplitted);
             socket.off("player result", playerResult);
         }
     }, [isHandshakeComplete]);
 
-    const cash = (worth ?? 0) - (bet ?? 0);
+    const cash = (worth ?? 0) - (totalBet ?? 0);
 
     let betChips = [0, 0, 0, 0, 0];
-    if (bet) {
-        betChips = convertToChips(bet);
+    if (totalBet) {
+        betChips = convertToChips(totalBet);
     }
 
     function convertToChips(cashAmount: number) {
@@ -476,19 +574,35 @@ export default function Page() {
 
     function addBet(index: number) {
         if (CHIPS[index] <= cash) {
-            setBet(prev => (prev ?? 0) + CHIPS[index]);
+            setTotalBet(prev => (prev ?? 0) + CHIPS[index]);
             socket.emit("change bet", index, "add");
         }
     }
 
     function removeBet(index: number) {
-        if (bet && CHIPS[index] <= bet) {
-            setBet(prev => prev! - CHIPS[index]);
+        if (totalBet && CHIPS[index] <= totalBet) {
+            setTotalBet(prev => prev! - CHIPS[index]);
             socket.emit("change bet", index, "remove");
         }
     }
 
-    const bustedOrBlackjack = handValue && typeof handValue.value === "number" && handValue.value >= 21;
+    const bustedOrBlackjack = currentHand === 0
+        ? handValue && typeof handValue.value === "number" && handValue.value >= 21
+        : hand2Value && typeof hand2Value.value === "number" && hand2Value.value >= 21;
+    const canSplit = hand && hand.length === 2
+        ? hand[0].rank === hand[1].rank
+        && hand2.length === 0 // not splitted already
+        && worth && totalBet && worth > totalBet // sufficient balance
+        && (currentHand === 0 && !stand
+            || currentHand === 1 && !stand2)
+        && !bustedOrBlackjack
+        : false;
+    const canHit = !(currentHand === 0 && stand) && !(currentHand === 1 && stand2) && !bustedOrBlackjack;
+    const canStand = ((currentHand === 0 && !stand) || (currentHand === 1 && !stand2)) && !bustedOrBlackjack;
+    const currentBet = currentHand === 0 ? bet : bet2;
+    const canDouble = canStand
+        && (currentHand === 0 ? hand.length === 2 : hand2.length === 2) // only on initial 2-card hand
+        && currentBet && cash >= currentBet; // sufficient cash to double the current hand's bet
 
     return (
         <div className="grid grid-rows-4 grid-cols-2 overflow-hidden bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
@@ -502,11 +616,21 @@ export default function Page() {
                         You {worth ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{worth}</span> : <></>}
                     </h2>
                     {phase !== "bet" && <div>
-                        <div className="relative h-24 w-32">
+                        <motion.div
+                            className="relative h-24 w-32"
+                            animate={isMyTurn && currentHand === 0 ? {
+                                scale: [1, 1.03, 1]
+                            } : {}}
+                            transition={{
+                                duration: 2,
+                                repeat: isMyTurn && currentHand === 0 ? Number.POSITIVE_INFINITY : 0,
+                                ease: "easeInOut"
+                            }}
+                        >
                             <AnimatePresence mode="popLayout">
                                 {hand.map((card, index) =>
                                     <motion.div
-                                        key={`player-${card.rank}-${card.suit}-${index}`}
+                                        key={`hand-${card.rank}-${card.suit}-${index}`}
                                         className="absolute"
                                         style={{ left: `${index * 16}px` }}
                                         initial={{
@@ -538,9 +662,9 @@ export default function Page() {
                                     </motion.div>
                                 )}
                             </AnimatePresence>
-                        </div>
+                        </motion.div>
                         <AnimatePresence mode="wait">
-                            {handValue && (
+                            {handValue && handValue.value !== 0 && (
                                 <motion.div
                                     key={typeof handValue.value === 'number' ? handValue.value : `${handValue.value.low}-${handValue.value.high}`}
                                     className="text-white italic font-semibold"
@@ -560,6 +684,78 @@ export default function Page() {
                                 </motion.div>
                             )}
                         </AnimatePresence>
+                        {hand2 && hand2.length > 0 &&
+                            <>
+                                <motion.div
+                                    className="relative h-24 w-32"
+                                    animate={isMyTurn && currentHand === 1 ? {
+                                        scale: [1, 1.03, 1]
+                                    } : {}}
+                                    transition={{
+                                        duration: 2,
+                                        repeat: isMyTurn && currentHand === 1 ? Number.POSITIVE_INFINITY : 0,
+                                        ease: "easeInOut"
+                                    }}
+                                >
+                                    <AnimatePresence mode="popLayout">
+                                        {hand2.map((card, index) =>
+                                            <motion.div
+                                                key={`hand2-${card.rank}-${card.suit}-${index}`}
+                                                className="absolute"
+                                                style={{ left: `${index * 16}px` }}
+                                                initial={{
+                                                    opacity: 0,
+                                                    y: -200,
+                                                    x: 100,
+                                                    scale: 0.8,
+                                                    rotate: -10
+                                                }}
+                                                animate={{
+                                                    opacity: 1,
+                                                    y: 0,
+                                                    x: 0,
+                                                    scale: 1,
+                                                    rotate: 0
+                                                }}
+                                                exit={{
+                                                    opacity: 0,
+                                                    scale: 0.8
+                                                }}
+                                                transition={{
+                                                    type: "spring",
+                                                    stiffness: 200,
+                                                    damping: 20,
+                                                    delay: index * 0.2
+                                                }}
+                                            >
+                                                <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </motion.div>
+                                <AnimatePresence mode="wait">
+                                    {hand2Value && (
+                                        <motion.div
+                                            key={typeof hand2Value.value === 'number' ? hand2Value.value : `${hand2Value.value.low}-${hand2Value.value.high}`}
+                                            className="text-white italic font-semibold"
+                                            initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.5, y: 10 }}
+                                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                        >
+                                            {typeof hand2Value.value === 'number'
+                                                ? <>{hand2Value.value}</>
+                                                : <>{hand2Value.value.low} / {hand2Value.value.high}</>
+                                            } {hand2Value?.status && (
+                                                <span className="text-[#DAA520] not-italic font-light">
+                                                    {hand2Value.status}
+                                                </span>
+                                            )}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </>
+                        }
                     </div>}
                     {phase === "bet" && <div className="flex gap-0.5">
                         <div className="flex flex-col gap-2 items-center">
@@ -575,9 +771,9 @@ export default function Page() {
                             </motion.button>
                             <motion.button
                                 onClick={() => removeBet(0)}
-                                className={`${!bet || (bet < CHIPS[0]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
-                                whileHover={bet && bet >= CHIPS[0] ? { scale: 1.1 } : {}}
-                                whileTap={bet && bet >= CHIPS[0] ? { scale: 0.95 } : {}}
+                                className={`${!totalBet || (totalBet < CHIPS[0]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={totalBet && totalBet >= CHIPS[0] ? { scale: 1.1 } : {}}
+                                whileTap={totalBet && totalBet >= CHIPS[0] ? { scale: 0.95 } : {}}
                                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
                             >
                                 -
@@ -596,9 +792,9 @@ export default function Page() {
                             </motion.button>
                             <motion.button
                                 onClick={() => removeBet(1)}
-                                className={`${!bet || (bet < CHIPS[1]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
-                                whileHover={bet && bet >= CHIPS[1] ? { scale: 1.1 } : {}}
-                                whileTap={bet && bet >= CHIPS[1] ? { scale: 0.95 } : {}}
+                                className={`${!totalBet || (totalBet < CHIPS[1]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={totalBet && totalBet >= CHIPS[1] ? { scale: 1.1 } : {}}
+                                whileTap={totalBet && totalBet >= CHIPS[1] ? { scale: 0.95 } : {}}
                                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
                             >
                                 -
@@ -617,9 +813,9 @@ export default function Page() {
                             </motion.button>
                             <motion.button
                                 onClick={() => removeBet(2)}
-                                className={`${!bet || (bet < CHIPS[2]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
-                                whileHover={bet && bet >= CHIPS[2] ? { scale: 1.1 } : {}}
-                                whileTap={bet && bet >= CHIPS[2] ? { scale: 0.95 } : {}}
+                                className={`${!totalBet || (totalBet < CHIPS[2]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={totalBet && totalBet >= CHIPS[2] ? { scale: 1.1 } : {}}
+                                whileTap={totalBet && totalBet >= CHIPS[2] ? { scale: 0.95 } : {}}
                                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
                             >
                                 -
@@ -638,9 +834,9 @@ export default function Page() {
                             </motion.button>
                             <motion.button
                                 onClick={() => removeBet(3)}
-                                className={`${!bet || (bet < CHIPS[3]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
-                                whileHover={bet && bet >= CHIPS[3] ? { scale: 1.1 } : {}}
-                                whileTap={bet && bet >= CHIPS[3] ? { scale: 0.95 } : {}}
+                                className={`${!totalBet || (totalBet < CHIPS[3]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={totalBet && totalBet >= CHIPS[3] ? { scale: 1.1 } : {}}
+                                whileTap={totalBet && totalBet >= CHIPS[3] ? { scale: 0.95 } : {}}
                                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
                             >
                                 -
@@ -659,9 +855,9 @@ export default function Page() {
                             </motion.button>
                             <motion.button
                                 onClick={() => removeBet(4)}
-                                className={`${!bet || (bet < CHIPS[4]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
-                                whileHover={bet && bet >= CHIPS[4] ? { scale: 1.1 } : {}}
-                                whileTap={bet && bet >= CHIPS[4] ? { scale: 0.95 } : {}}
+                                className={`${!totalBet || (totalBet < CHIPS[4]) ? "opacity-50" : ""} size-8 bg-[#DAA520] rounded-sm cursor-pointer text-[#016F32]`}
+                                whileHover={totalBet && totalBet >= CHIPS[4] ? { scale: 1.1 } : {}}
+                                whileTap={totalBet && totalBet >= CHIPS[4] ? { scale: 0.95 } : {}}
                                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
                             >
                                 -
@@ -711,14 +907,14 @@ export default function Page() {
                         >
                             <AnimatePresence mode="wait">
                                 <motion.div
-                                    key={bet}
+                                    key={totalBet}
                                     className="flex justify-center items-end text-white italic font-semibold pb-1"
                                     initial={{ opacity: 0, y: -10, scale: 0.8 }}
-                                    animate={{ opacity: bet ? 1 : 0, y: 0, scale: 1 }}
+                                    animate={{ opacity: totalBet ? 1 : 0, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: 10, scale: 0.8 }}
                                     transition={{ type: "spring", stiffness: 400, damping: 25, duration: 0.2 }}
                                 >
-                                    {bet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{bet}</span> : ''}
+                                    {totalBet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{totalBet}</span> : ''}
                                 </motion.div>
                             </AnimatePresence>
                             <div className="flex justify-center items-center relative">
@@ -787,11 +983,11 @@ export default function Page() {
                             <div className="grid grid-cols-2 gap-2">
                                 <motion.button
                                     onClick={() => {
-                                        if (!stand && !bustedOrBlackjack) {
+                                        if (canHit) {
                                             socket.emit("hit");
                                         }
                                     }}
-                                    className={`${stand || bustedOrBlackjack ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                    className={`${!canHit ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Hit - Draw another card"
                                     whileHover={!stand && !bustedOrBlackjack ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
                                     whileTap={!stand && !bustedOrBlackjack ? { scale: 0.95 } : {}}
@@ -801,12 +997,17 @@ export default function Page() {
                                 </motion.button>
                                 <motion.button
                                     onClick={() => {
-                                        if (!stand && !bustedOrBlackjack) {
-                                            setStand(true);
+                                        if (canStand) {
+                                            if (currentHand === 0) {
+                                                setStand(true);
+                                            }
+                                            else {
+                                                setStand2(true);
+                                            }
                                             socket.emit("stand");
                                         }
                                     }}
-                                    className={`${stand || bustedOrBlackjack ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                    className={`${!canStand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Stand - Keep current hand"
                                     whileHover={!stand && !bustedOrBlackjack ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
                                     whileTap={!stand && !bustedOrBlackjack ? { scale: 0.95 } : {}}
@@ -816,11 +1017,11 @@ export default function Page() {
                                 </motion.button>
                                 <motion.button
                                     onClick={() => {
-                                        if (!stand) {
-
+                                        if (canSplit) {
+                                            socket.emit("split");
                                         }
                                     }}
-                                    className={`${stand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                    className={`${!canSplit ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Split — Split into two hands"
                                     whileHover={!stand ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
                                     whileTap={!stand ? { scale: 0.95 } : {}}
@@ -830,11 +1031,11 @@ export default function Page() {
                                 </motion.button>
                                 <motion.button
                                     onClick={() => {
-                                        if (!stand) {
-
+                                        if (canDouble) {
+                                            socket.emit("double");
                                         }
                                     }}
-                                    className={`${stand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                    className={`${!canDouble ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Double — Double bet, take one card"
                                     whileHover={!stand ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
                                     whileTap={!stand ? { scale: 0.95 } : {}}
@@ -848,30 +1049,30 @@ export default function Page() {
                             <div className="grid grid-cols-2 gap-2">
                                 <motion.button
                                     onClick={() => {
-                                        if (bet && bet > 0 && !check) {
+                                        if (totalBet && totalBet > 0 && !check) {
                                             setCheck(true);
                                             socket.emit("check");
                                         }
                                     }}
-                                    className={`${!bet || bet === 0 || check ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                    className={`${!totalBet || totalBet === 0 || check ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Ready — End turn now"
-                                    whileHover={bet && bet > 0 && !check ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
-                                    whileTap={bet && bet > 0 && !check ? { scale: 0.95 } : {}}
+                                    whileHover={totalBet && totalBet > 0 && !check ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
+                                    whileTap={totalBet && totalBet > 0 && !check ? { scale: 0.95 } : {}}
                                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                 >
                                     <Check size={25} />
                                 </motion.button>
                                 <motion.button
                                     onClick={() => {
-                                        if (bet && bet > 0 && !check) {
-                                            setBet(0);
+                                        if (totalBet && totalBet > 0 && !check) {
+                                            setTotalBet(0);
                                             socket.emit("remove bet");
                                         }
                                     }}
-                                    className={`${!bet || bet === 0 || check ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
+                                    className={`${!totalBet || totalBet === 0 || check ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Clear Bet — Remove your bet"
-                                    whileHover={bet && bet > 0 && !check ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
-                                    whileTap={bet && bet > 0 && !check ? { scale: 0.95 } : {}}
+                                    whileHover={totalBet && totalBet > 0 && !check ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
+                                    whileTap={totalBet && totalBet > 0 && !check ? { scale: 0.95 } : {}}
                                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                 >
                                     <X size={25} />
@@ -880,7 +1081,7 @@ export default function Page() {
                                     <motion.button
                                         onClick={() => {
                                             if (worth && betBefore && worth >= betBefore && !check) {
-                                                setBet(betBefore);
+                                                setTotalBet(betBefore);
                                                 socket.emit("repeat bet");
                                             }
                                         }}
@@ -897,7 +1098,7 @@ export default function Page() {
                                     <motion.button
                                         onClick={() => {
                                             if (worth && betBefore && worth >= betBefore * 2 && !check) {
-                                                setBet(betBefore * 2);
+                                                setTotalBet(betBefore * 2);
                                                 socket.emit("double bet");
                                             }
                                         }}
@@ -1078,7 +1279,7 @@ export default function Page() {
                         </div>
                     </motion.div>
                     <AnimatePresence mode="wait">
-                        {dealerHandValue && (
+                        {dealerHandValue && dealerHandValue.value !== 0 && (
                             <motion.div
                                 key={typeof dealerHandValue.value === 'number' ? dealerHandValue.value : `${dealerHandValue.value.low}-${dealerHandValue.value.high}`}
                                 className="mt-12 text-white italic font-semibold"
@@ -1101,7 +1302,7 @@ export default function Page() {
                 </div>
 
                 <div className="w-1/5 text-[#DAA520] text-center cursor-pointer">
-                    <div>
+                    <div className="font-extrabold">
                         X
                     </div>
                     <div>
@@ -1112,29 +1313,79 @@ export default function Page() {
             <AnimatePresence mode="wait">
                 <motion.div
                     className="mt-4 italic font-semibold"
-                    key={myResult || status}
+                    key={handResult?.result || status}
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 10 }}
                     transition={{ duration: 0.3 }}
                 >
-                    {myResult ? (
-                        <span className={`inline-flex items-center gap-1 ${
-                            myResult === "win" || myResult === "blackjack"
+                    {handResult?.result ? (
+                        hand2Result ? (
+                            (() => {
+                                const hand1IsWin = handResult.result === "win" || handResult.result === "blackjack";
+                                const hand2IsWin = hand2Result.result === "win" || hand2Result.result === "blackjack";
+                                const hand1IsLose = handResult.result === "lose";
+                                const hand2IsLose = hand2Result.result === "lose";
+                                const hand1IsPush = handResult.result === "push";
+                                const hand2IsPush = hand2Result.result === "push";
+
+                                if (hand1IsWin && hand2IsWin) {
+                                    return (
+                                        <span className="inline-flex items-center gap-1 text-green-400">
+                                            You won <Currency size={20} />{totalWinnings}!
+                                        </span>
+                                    );
+                                }
+                                if (hand1IsLose && hand2IsLose) {
+                                    return <span className="text-red-400">You lost</span>;
+                                }
+                                if (hand1IsPush && hand2IsPush) {
+                                    return <span className="text-yellow-400">Push</span>;
+                                }
+
+                                const getHandText = (result: HandResult, handName: string) => {
+                                    const isWin = result.result === "win" || result.result === "blackjack";
+                                    const isLose = result.result === "lose";
+
+                                    if (isWin) {
+                                        return (
+                                            <span className="inline-flex text-green-400">
+                                                {handName}: Won <Currency size={20} className="ml-2" />{result.winnings}
+                                            </span>
+                                        );
+                                    }
+                                    if (isLose) {
+                                        return <span className="text-red-400">{handName}: You lost</span>;
+                                    }
+                                    return <span className="text-yellow-400">{handName}: Push</span>;
+                                };
+
+                                return (
+                                    <span className="inline-flex items-center gap-2">
+                                        {getHandText(handResult, "Hand 1")}
+                                        <span className="text-white">|</span>
+                                        {getHandText(hand2Result, "Hand 2")}
+                                    </span>
+                                );
+                            })()
+                        ) : (
+                            // Single hand scenario
+                            <span className={`inline-flex items-center gap-1 ${handResult?.result === "win" || handResult?.result === "blackjack"
                                 ? "text-green-400"
-                                : myResult === "lose"
-                                ? "text-red-400"
-                                : "text-yellow-400"
-                        }`}>
-                            {myResult === "win" && (
-                                <>You won <Currency size={20} />{myWinAmount}!</>
-                            )}
-                            {myResult === "blackjack" && (
-                                <>You won <Currency size={20} />{myWinAmount}!</>
-                            )}
-                            {myResult === "lose" && "You lost"}
-                            {myResult === "push" && "Push"}
-                        </span>
+                                : handResult?.result === "lose"
+                                    ? "text-red-400"
+                                    : "text-yellow-400"
+                                }`}>
+                                {handResult?.result === "win" && (
+                                    <>You won <Currency size={20} />{totalWinnings}!</>
+                                )}
+                                {handResult?.result === "blackjack" && (
+                                    <>You won <Currency size={20} />{totalWinnings}!</>
+                                )}
+                                {handResult?.result === "lose" && "You lost"}
+                                {handResult?.result === "push" && "Push"}
+                            </span>
+                        )
                     ) : (
                         <span className="text-white">{status}</span>
                     )}
@@ -1178,7 +1429,7 @@ export default function Page() {
                 {phase !== "bet" &&
                     <div className="flex flex-col items-start">
                         <div className="flex text-white italic">
-                            {otherPlayer.bet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{otherPlayer.bet}</span> : ''}
+                            {otherPlayer.totalBet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{otherPlayer.totalBet}</span> : ''}
                         </div>
                         <div className="relative">
                             <AnimatePresence>
@@ -1208,11 +1459,21 @@ export default function Page() {
                                     </motion.svg>
                                 )}
                             </AnimatePresence>
-                            <div className="relative h-24 w-32">
+                            <motion.div
+                                className="relative h-24 w-32"
+                                animate={isPlayersTurn && otherPlayer.currentHand === 0 ? {
+                                    scale: [1, 1.03, 1]
+                                } : {}}
+                                transition={{
+                                    duration: 2,
+                                    repeat: isPlayersTurn && otherPlayer.currentHand === 0 ? Number.POSITIVE_INFINITY : 0,
+                                    ease: "easeInOut"
+                                }}
+                            >
                                 <AnimatePresence mode="popLayout">
                                     {otherPlayer.hand && otherPlayer.hand.map((card, index) =>
                                         <motion.div
-                                            key={`other-player-${playerIndex}-${card.rank}-${card.suit}-${index}`}
+                                            key={`other-player-hand-${playerIndex}-${card.rank}-${card.suit}-${index}`}
                                             className="absolute"
                                             style={{ left: `${index * 16}px` }}
                                             initial={{
@@ -1244,29 +1505,97 @@ export default function Page() {
                                         </motion.div>
                                     )}
                                 </AnimatePresence>
-                            </div>
-                        </div>
-                        <AnimatePresence mode="wait">
-                            {otherPlayer.handValue && (
-                                <motion.div
-                                    key={typeof otherPlayer.handValue.value === 'number' ? otherPlayer.handValue.value : `${otherPlayer.handValue.value.low}-${otherPlayer.handValue.value.high}`}
-                                    className="text-white italic font-semibold"
-                                    initial={{ opacity: 0, scale: 0.5, y: -10 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.5, y: 10 }}
-                                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                                >
-                                    {typeof otherPlayer.handValue.value === 'number'
-                                        ? <>{otherPlayer.handValue.value}</>
-                                        : <>{otherPlayer.handValue.value.low} / {otherPlayer.handValue.value.high}</>
-                                    } {otherPlayer.handValue?.status && (
-                                        <span className="text-[#DAA520] not-italic font-light">
-                                            {otherPlayer.handValue.status}
-                                        </span>
+                            </motion.div>
+                            <AnimatePresence mode="wait">
+                                {otherPlayer.handValue && otherPlayer.handValue.value !== 0 && (
+                                    <motion.div
+                                        key={typeof otherPlayer.handValue.value === 'number' ? otherPlayer.handValue.value : `${otherPlayer.handValue.value.low}-${otherPlayer.handValue.value.high}`}
+                                        className="text-white italic font-semibold"
+                                        initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.5, y: 10 }}
+                                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                    >
+                                        {typeof otherPlayer.handValue.value === 'number'
+                                            ? <>{otherPlayer.handValue ? otherPlayer.handValue.value : <></>}</>
+                                            : <>{otherPlayer.handValue.value.low} / {otherPlayer.handValue.value.high}</>
+                                        } {otherPlayer.handValue?.status && (
+                                            <span className="text-[#DAA520] not-italic font-light">
+                                                {otherPlayer.handValue.status}
+                                            </span>
+                                        )}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            <motion.div
+                                className="relative h-24 w-32"
+                                animate={isPlayersTurn && otherPlayer.currentHand === 1 ? {
+                                    scale: [1, 1.03, 1]
+                                } : {}}
+                                transition={{
+                                    duration: 2,
+                                    repeat: isPlayersTurn && otherPlayer.currentHand === 1 ? Number.POSITIVE_INFINITY : 0,
+                                    ease: "easeInOut"
+                                }}
+                            >
+                                <AnimatePresence mode="popLayout">
+                                    {otherPlayer.hand2 && otherPlayer.hand2.map((card, index) =>
+                                        <motion.div
+                                            key={`other-player-hand2-${playerIndex}-${card.rank}-${card.suit}-${index}`}
+                                            className="absolute"
+                                            style={{ left: `${index * 16}px` }}
+                                            initial={{
+                                                opacity: 0,
+                                                y: -150,
+                                                x: playerIndex === 0 ? 80 : -80,
+                                                scale: 0.8,
+                                                rotate: playerIndex === 0 ? -8 : 8
+                                            }}
+                                            animate={{
+                                                opacity: 1,
+                                                y: 0,
+                                                x: 0,
+                                                scale: 1,
+                                                rotate: 0
+                                            }}
+                                            exit={{
+                                                opacity: 0,
+                                                scale: 0.8
+                                            }}
+                                            transition={{
+                                                type: "spring",
+                                                stiffness: 200,
+                                                damping: 20,
+                                                delay: index * 0.2
+                                            }}
+                                        >
+                                            <Image src={card.imageUrl} alt={card.alt} width={65} height={94} draggable={false} />
+                                        </motion.div>
                                     )}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                                </AnimatePresence>
+                            </motion.div>
+                            <AnimatePresence mode="wait">
+                                {otherPlayer.hand2Value && (
+                                    <motion.div
+                                        key={typeof otherPlayer.hand2Value.value === 'number' ? otherPlayer.hand2Value.value : `${otherPlayer.hand2Value.value.low}-${otherPlayer.hand2Value.value.high}`}
+                                        className="text-white italic font-semibold"
+                                        initial={{ opacity: 0, scale: 0.5, y: -10 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.5, y: 10 }}
+                                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                    >
+                                        {typeof otherPlayer.hand2Value.value === 'number'
+                                            ? <>{otherPlayer.hand2Value ? otherPlayer.hand2Value.value : <></>}</>
+                                            : <>{otherPlayer.hand2Value.value.low} / {otherPlayer.hand2Value.value.high}</>
+                                        } {otherPlayer.hand2Value?.status && (
+                                            <span className="text-[#DAA520] not-italic font-light">
+                                                {otherPlayer.hand2Value.status}
+                                            </span>
+                                        )}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
                     </div>
                 }
                 {phase === "bet" ?
@@ -1298,20 +1627,20 @@ export default function Page() {
                         <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-42">
                             <AnimatePresence mode="wait">
                                 <motion.div
-                                    key={otherPlayer.bet}
+                                    key={otherPlayer.totalBet}
                                     className="flex justify-center items-end text-white italic font-semibold pb-1"
                                     initial={{ opacity: 0, y: -10, scale: 0.8 }}
-                                    animate={{ opacity: otherPlayer.bet ? 1 : 0, y: 0, scale: 1 }}
+                                    animate={{ opacity: otherPlayer.totalBet ? 1 : 0, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: 10, scale: 0.8 }}
                                     transition={{ type: "spring", stiffness: 400, damping: 25, duration: 0.2 }}
                                 >
-                                    {otherPlayer.bet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{otherPlayer.bet}</span> : ''}
+                                    {otherPlayer.totalBet ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{otherPlayer.totalBet}</span> : ''}
                                 </motion.div>
                             </AnimatePresence>
                             <div className="flex justify-center items-center h-full">
                                 {(() => {
-                                    const playerBetChips = otherPlayer.bet
-                                        ? convertToChips(otherPlayer.bet)
+                                    const playerBetChips = otherPlayer.totalBet
+                                        ? convertToChips(otherPlayer.totalBet)
                                         : [0, 0, 0, 0, 0];
                                     return (
                                         <>

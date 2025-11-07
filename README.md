@@ -44,6 +44,10 @@ For clarification (from Claude):
 ### drop the development db
 ```prisma migrate reset```
 
+## Game rules
+If you split Aces, you automatically get 1 hit and auto-stand, no doubling allowed.
+If you split and a hand gets 21 with Ace + 10, you win 1:1, not 3:2.
+
 ## TODO: Game economy
 ## Streak
 
