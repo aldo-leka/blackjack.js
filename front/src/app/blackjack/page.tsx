@@ -592,7 +592,7 @@ export default function Page() {
     const canSplit = hand && hand.length === 2
         ? hand[0].rank === hand[1].rank
         && hand2.length === 0 // not splitted already
-        && worth && totalBet && worth > totalBet // sufficient balance
+        && worth && bet && worth >= bet // sufficient balance
         && (currentHand === 0 && !stand
             || currentHand === 1 && !stand2)
         && !bustedOrBlackjack
@@ -602,7 +602,7 @@ export default function Page() {
     const currentBet = currentHand === 0 ? bet : bet2;
     const canDouble = canStand
         && (currentHand === 0 ? hand.length === 2 : hand2.length === 2) // only on initial 2-card hand
-        && currentBet && cash >= currentBet; // sufficient cash to double the current hand's bet
+        && currentBet && worth && worth >= currentBet; // sufficient cash to double the current hand's bet
 
     return (
         <div className="grid grid-rows-4 grid-cols-2 overflow-hidden bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
