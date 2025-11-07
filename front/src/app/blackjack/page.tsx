@@ -2,12 +2,14 @@
 
 import Chip from "@/components/Chip";
 import { socket } from "@/lib/socket";
-import { Check, Currency, Hand, Plus, Repeat, Split, X } from "lucide-react";
+import { Check, Currency, Hand, Music, Plus, Repeat, Split, X, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
 import { Card, CHIPS, DECK, HandResult, HandValue } from "@/lib/util";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
+import Snowfall from "react-snowfall";
+import radio from "@/lib/radio";
 
 interface Player {
     nickname: string;
@@ -99,6 +101,8 @@ export default function Page() {
     const [hand2Result, setHand2Result] = useState<HandResult>();
     const [totalWinnings, setTotalWinnings] = useState<number>();
     const [isConnected, setIsConnected] = useState(false);
+    const [isMuted, setIsMuted] = useState(false);
+    const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
     useEffect(() => {
         function onConnect() {
@@ -121,6 +125,59 @@ export default function Page() {
             socket.off("disconnect", onDisconnect);
         };
     }, []);
+
+    useEffect(() => {
+        let audio: HTMLAudioElement | null = null;
+
+        async function setupRadio() {
+            try {
+                const stations = await radio.searchStations({
+                    tag: "christmas",
+                    limit: 10,
+                    order: "votes",
+                    reverse: true
+                });
+
+                if (stations.length > 0) {
+                    // Find a station with a working stream
+                    const station = stations.find(s => s.urlResolved);
+                    if (station) {
+                        audio = new Audio(station.urlResolved);
+                        audio.loop = false;
+                        audio.volume = 0.3; // Set to 30% volume
+
+                        // Attempt to autoplay
+                        audio.play().catch(err => {
+                            console.log("Autoplay prevented by browser:", err);
+                        });
+
+                        setAudioElement(audio);
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to load Christmas radio:", error);
+            }
+        }
+
+        setupRadio();
+
+        return () => {
+            if (audio) {
+                audio.pause();
+                audio.src = "";
+            }
+        };
+    }, []);
+    
+    useEffect(() => {
+        if (audioElement) {
+            audioElement.muted = isMuted;
+        }
+    }, [isMuted, audioElement]);
+
+    const toggleMute = () => {
+        setIsMuted(!isMuted);
+    };
 
     useEffect(() => {
         if (!isHandshakeComplete) {
@@ -606,6 +663,7 @@ export default function Page() {
 
     return (
         <div className="grid grid-rows-4 grid-cols-2 overflow-hidden bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
+            <Snowfall />
             <div id="dealer-zone" className="col-span-2">
                 {getDealerComponent()}
             </div>
@@ -1154,7 +1212,24 @@ export default function Page() {
     function getDealerComponent() {
         return <div className="flex flex-col items-center">
             <div className="flex w-full justify-center">
-                <div className="w-1/5"></div>
+                <div className="w-1/5 flex justify-center">
+                    <motion.button
+                        onClick={toggleMute}
+                        className="text-[#DAA520] cursor-pointer flex flex-col items-center gap-1"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                        title={isMuted ? "Unmute Christmas Radio" : "Mute Christmas Radio"}
+                    >
+                        <div className="flex items-center gap-1">
+                            <Music className={isMuted ? "opacity-50" : ""} />
+                            {isMuted ? <VolumeX size={16} className="opacity-50" /> : <Volume2 size={16} />}
+                        </div>
+                        <div className={`text-xs ${isMuted ? "opacity-50" : ""}`}>
+                            {isMuted ? "Muted" : "Radio"}
+                        </div>
+                    </motion.button>
+                </div>
 
                 <div className="flex flex-col items-center min-h-[150px]">
                     <motion.div
