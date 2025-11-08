@@ -168,7 +168,7 @@ export default function Page() {
             }
         };
     }, []);
-    
+
     useEffect(() => {
         if (audioElement) {
             audioElement.muted = isMuted;
@@ -359,6 +359,7 @@ export default function Page() {
             setDealerHand([{
                 rank: "facedown",
                 suit: "card",
+                value: [0],
                 imageUrl: "/images/card back red.png",
                 alt: "Facedown playing card",
             }]);
@@ -501,6 +502,9 @@ export default function Page() {
                 .map(p => getPlayerMap(p));
 
             setWorth(me.worth);
+            setBet(me.bet);
+            setBet2(me.bet2);
+            setTotalBet(me.totalBet);
             setOtherPlayers(otherPlayers);
             setHandResult(me.handResult);
             setHand2Result(me.hand2Result);
@@ -643,19 +647,27 @@ export default function Page() {
         }
     }
 
-    const bustedOrBlackjack = currentHand === 0
-        ? handValue && typeof handValue.value === "number" && handValue.value >= 21
-        : hand2Value && typeof hand2Value.value === "number" && hand2Value.value >= 21;
+    const bustedOr21 = currentHand === 0
+        ? handValue && (
+            typeof handValue.value === "number"
+                ? handValue.value >= 21
+                : handValue.value.high >= 21
+        )
+        : hand2Value && (
+            typeof hand2Value.value === "number"
+                ? hand2Value.value >= 21
+                : hand2Value.value.high >= 21
+        );
     const canSplit = hand && hand.length === 2
-        ? hand[0].rank === hand[1].rank
+        ? hand[0].value.some(v => hand[1].value.includes(v))
         && hand2.length === 0 // not splitted already
         && worth && bet && worth >= bet // sufficient balance
         && (currentHand === 0 && !stand
             || currentHand === 1 && !stand2)
-        && !bustedOrBlackjack
+        && !bustedOr21
         : false;
-    const canHit = !(currentHand === 0 && stand) && !(currentHand === 1 && stand2) && !bustedOrBlackjack;
-    const canStand = ((currentHand === 0 && !stand) || (currentHand === 1 && !stand2)) && !bustedOrBlackjack;
+    const canHit = !(currentHand === 0 && stand) && !(currentHand === 1 && stand2) && !bustedOr21;
+    const canStand = ((currentHand === 0 && !stand) || (currentHand === 1 && !stand2)) && !bustedOr21;
     const currentBet = currentHand === 0 ? bet : bet2;
     const canDouble = canStand
         && (currentHand === 0 ? hand.length === 2 : hand2.length === 2) // only on initial 2-card hand
@@ -1047,8 +1059,8 @@ export default function Page() {
                                     }}
                                     className={`${!canHit ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Hit - Draw another card"
-                                    whileHover={!stand && !bustedOrBlackjack ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
-                                    whileTap={!stand && !bustedOrBlackjack ? { scale: 0.95 } : {}}
+                                    whileHover={!stand && !bustedOr21 ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
+                                    whileTap={!stand && !bustedOr21 ? { scale: 0.95 } : {}}
                                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                 >
                                     <Plus size={25} />
@@ -1067,8 +1079,8 @@ export default function Page() {
                                     }}
                                     className={`${!canStand ? "opacity-50" : ""} px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]`}
                                     title="Stand - Keep current hand"
-                                    whileHover={!stand && !bustedOrBlackjack ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
-                                    whileTap={!stand && !bustedOrBlackjack ? { scale: 0.95 } : {}}
+                                    whileHover={!stand && !bustedOr21 ? { scale: 1.05, backgroundColor: "#c99a1f" } : {}}
+                                    whileTap={!stand && !bustedOr21 ? { scale: 0.95 } : {}}
                                     transition={{ type: "spring", stiffness: 400, damping: 17 }}
                                 >
                                     <Hand size={25} />

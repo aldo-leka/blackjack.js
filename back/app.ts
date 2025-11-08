@@ -662,8 +662,8 @@ io.on('connection', async (socket) => {
             return;
         }
 
-        if (user.hand[0].rank !== user.hand[1].rank) {
-            logWarning(`split: '${nickname}' can't split as the ranks are not the same`);
+        if (!user.hand[0].value.some(v => user.hand![1].value.includes(v))) {
+            logWarning(`split: '${nickname}' can't split as the cards don't share the same value`);
             return;
         }
 
@@ -679,7 +679,6 @@ io.on('connection', async (socket) => {
 
         const card1 = user.hand[0];
         const card2 = user.hand[1];
-        const isAceSplit = card1.rank === "A";
 
         user.hand = [card1];
         user.hand2 = [card2];
@@ -687,32 +686,9 @@ io.on('connection', async (socket) => {
         user.cash! -= user.bet!;
         user.bet2 = user.bet;
 
-        logInfo(`split: ${nickname} splitted ${isAceSplit ? 'Aces' : card1.rank + 's'}`);
+        logInfo(`split: ${nickname} splitted ${card1.rank}s`);
         io.to(room.name).emit("user splitted", getUserMap(user));
-
-        if (isAceSplit) {
-            await wait(SHORT_WAIT);
-            const handCard2 = dealCard(room);
-            user.hand.push(handCard2);
-            user.stand = true;
-            io.to(room.name).emit("deal player card", getUserMap(user), getCardMap(handCard2));
-            logInfo(`split aces: dealt ${getLoggingCard(handCard2)} to ${nickname}'s first hand`);
-
-            await wait(DEAL_TIME);
-
-            user.currentHand = 1;
-            const hand2Card2 = dealCard(room);
-            user.hand2.push(hand2Card2);
-            user.stand2 = true;
-            io.to(room.name).emit("deal player card", getUserMap(user), getCardMap(hand2Card2));
-            logInfo(`split aces: dealt ${getLoggingCard(hand2Card2)} to ${nickname}'s second hand`);            
-
-            await wait(SHORT_WAIT);
-            await nextPlayer(room);
-        }
-        else {
-            setRoomTimer(room, PLAY_TIME, async () => await nextPlayer(room));
-        }
+        setRoomTimer(room, PLAY_TIME, async () => await nextPlayer(room));
     });
 
     socket.on("double", async () => {
@@ -841,7 +817,6 @@ async function dealInitialCards(room: Room) {
             }
 
             const card = dealCard(room);
-            // const card = { rank: "4", suit: "spades", value: [4] };
             player.hand = [card];
             io.to(room.name).emit("deal player card", getUserMap(player), getCardMap(card));
             await wait(DEAL_TIME);
@@ -869,7 +844,6 @@ async function dealInitialCards(room: Room) {
 
         if (player.bet && player.bet > 0) {
             const card = dealCard(room);
-            // const card = { rank: "4", suit: "spades", value: [4] };
             player.hand!.push(card);
             io.to(room.name).emit("deal player card", getUserMap(player), getCardMap(card));
 
@@ -879,14 +853,13 @@ async function dealInitialCards(room: Room) {
         }
     };
 
-    // TODO Pay out the players who have blackjack directly!
-
     card = dealCard(room);
     room.dealerHand.push(card);
     io.to(room.name).emit("deal dealer card", getCardMap(card), getHandValueDisplay([card]));
     await wait(DEAL_TIME);
     logInfo(`dealInitialCards: dealt ${getLoggingCard(card)} to dealer`);
 
+    // check for dealer blackjack
     if (card.value[0] === 10 || card.value.length > 1) {
         io.to(room.name).emit("dealer check blackjack");
         await wait(DEALER_CHECK_BLACKJACK_TIME);
@@ -898,6 +871,38 @@ async function dealInitialCards(room: Room) {
             return;
         }
     }
+
+    // check for players' blackjack
+    const dealerValue = getHandValue(room.dealerHand);
+    const dealerBusted = dealerValue > 21;
+    for (const player of playersCopy) {
+        const handValue = getHandValue(player.hand);
+        if (handValue === 21 && player.hand!.length === 2) {
+            let change = 0;
+            let winnings = 0;
+            let handResult = getHandResult(player.hand!, dealerValue, dealerBusted, player.bet!);
+            change += handResult.change;
+            winnings += handResult.winnings;
+            player.cash = Math.max(player.cash! + change, 0);
+            player.winningsThisRound = winnings;
+            player.handResult = handResult;
+            player.stand = true;
+            player.bet = undefined;
+            updateDbCash(player);
+        }
+    }
+
+    io.to(room.name).emit("player result", getRoomMap(room));
+
+    for (const player of playersCopy) {
+        const handValue = getHandValue(player.hand);
+        if (handValue === 21 && player.hand!.length === 2) {
+            player.winningsThisRound = undefined;
+            player.handResult = undefined;
+        }
+    }
+
+    await wait(SHORT_WAIT);
 
     startPlayerTurns(room);
 }
@@ -932,7 +937,10 @@ async function nextPlayer(room: Room) {
 
     let nextPlayerIndex = -1;
     for (let i = room.currentPlayerIndex! + 1; i < room.players.length; i++) {
-        if (room.players[i].bet && room.players[i].bet! > 0) {
+        const handValue = getHandValue(room.players[i].hand);
+        // handled already...
+        const isBlackjack = handValue === 21 && room.players[i].hand!.length === 2;
+        if (room.players[i].bet && room.players[i].bet! > 0 && !isBlackjack) {
             nextPlayerIndex = i;
             break;
         }
@@ -946,18 +954,6 @@ async function nextPlayer(room: Room) {
 
     room.currentPlayerIndex = nextPlayerIndex;
     const currentPlayer = room.players[room.currentPlayerIndex];
-
-    const handValue = getHandValue(currentPlayer.hand);
-    if (handValue === 21 && currentPlayer.hand!.length === 2) {
-        logInfo(`nextPlayer: ${currentPlayer.nickname} has blackjack!`);
-        currentPlayer.stand = true;
-        // TODO Payout player who has blackjack directly? and move onto the next player.
-        io.to(room.name).emit("player turn", getUserMap(currentPlayer));
-        await wait(SHORT_WAIT);
-        await nextPlayer(room);
-        return;
-    }
-
     io.to(room.name).emit("player turn", getUserMap(currentPlayer));
     setRoomTimer(room, PLAY_TIME, async () => await nextPlayer(room));
 }
@@ -1030,7 +1026,12 @@ async function determinePayout(room: Room) {
             continue;
         }
 
-        if (!player.bet || player.bet === 0) {
+        // Blackjack player already paid out
+        const handValue = getHandValue(player.hand);
+        const isBlackjack = handValue === 21
+            && player.hand!.length === 2
+            && player.hand2 === undefined; // checks for split (no blackjack there)
+        if (!player.bet || player.bet === 0 || isBlackjack) {
             continue;
         }
 
@@ -1046,24 +1047,11 @@ async function determinePayout(room: Room) {
             totalWinnings += hand2Result.winnings;
         }
 
-        player.cash = Math.max(player.cash! + totalChange, 0);
         player.winningsThisRound = totalWinnings;
+        player.cash = Math.max(player.cash! + totalChange, 0);
         player.handResult = hand1Result;
         player.hand2Result = hand2Result;
-
-        prisma.tempUser.update({
-            where: {
-                nickname_countryCode: {
-                    nickname: player.nickname,
-                    countryCode: player.countryCode
-                }
-            },
-            data: {
-                cash: player.cash
-            }
-        }).catch(err => {
-            logError(`Failed to update cash for ${player.nickname}`, err);
-        });
+        updateDbCash(player);
 
         logInfo(`determinePayout: ${player.nickname} (bet: ${player.bet}, won: ${totalWinnings}, new cash: ${player.cash})`);
     }
@@ -1074,7 +1062,23 @@ async function determinePayout(room: Room) {
     restartGame(room);
 }
 
-function getHandResult(hand: Card[], dealerValue: number, dealerBusted: boolean, bet: number, splitted: boolean) {
+function updateDbCash(player: UserData) {
+    prisma.tempUser.update({
+        where: {
+            nickname_countryCode: {
+                nickname: player.nickname,
+                countryCode: player.countryCode
+            }
+        },
+        data: {
+            cash: player.cash
+        }
+    }).catch(err => {
+        logError(`Failed to update cash for ${player.nickname}`, err);
+    });
+}
+
+function getHandResult(hand: Card[], dealerValue: number, dealerBusted: boolean, bet: number, splitted: boolean = false) {
     const handValue = getHandValue(hand);
     const playerBusted = handValue > 21;
     const isBlackjack = handValue === 21 && hand.length === 2 && !splitted;
@@ -1210,7 +1214,7 @@ function getHandValue(hand?: Card[]) {
     return value;
 }
 
-function getHandValueDisplay(hand?: Card[]) {
+function getHandValueDisplay(hand?: Card[], allowBlackjack: boolean = true) {
     if (!hand || hand.length === 0) return { value: 0, status: null };
 
     let low = 0;
@@ -1223,7 +1227,7 @@ function getHandValueDisplay(hand?: Card[]) {
 
     const bestValue = numAces > 0 && low + 10 <= 21 ? low + 10 : low;
     let status: "Blackjack!" | "Bust!" | null = null;
-    if (bestValue === 21 && hand.length === 2) {
+    if (bestValue === 21 && hand.length === 2 && allowBlackjack) {
         status = "Blackjack!";
         return { value: 21, status };
     } else if (bestValue > 21) {
@@ -1255,8 +1259,8 @@ function getUserMap(user: UserData) {
         stand2: user.stand2,
         hand: user.hand?.map(c => getCardMap(c)),
         hand2: user.hand2?.map(c => getCardMap(c)),
-        handValue: getHandValueDisplay(user.hand),
-        hand2Value: getHandValueDisplay(user.hand2),
+        handValue: getHandValueDisplay(user.hand, user.hand2 === undefined),
+        hand2Value: getHandValueDisplay(user.hand2, user.hand2 === undefined),
         currentHand: user.currentHand,
         winningsThisRound: user.winningsThisRound,
         handResult: user.handResult,
