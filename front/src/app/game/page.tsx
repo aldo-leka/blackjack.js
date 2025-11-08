@@ -103,6 +103,7 @@ export default function Page() {
     const [isConnected, setIsConnected] = useState(false);
     const [isMuted, setIsMuted] = useState(false);
     const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+    const [showQuitModal, setShowQuitModal] = useState(false);
 
     useEffect(() => {
         function onConnect() {
@@ -1218,6 +1219,53 @@ export default function Page() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            <AnimatePresence>
+                {showQuitModal && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="fixed inset-0 flex justify-center z-50"
+                        style={{ backdropFilter: 'blur(5px)' }}
+                    >
+                        <div className="absolute inset-0 bg-black opacity-70" onClick={() => setShowQuitModal(false)} />
+                        <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.8, opacity: 0 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                            className="relative flex flex-col items-center gap-2"
+                        >
+                            <h2 className="text-[#DAA520] text-3xl font-bold m-4">Blackjack</h2>
+                            <p className="text-white italic font-semibold">
+                                Are you sure you want to quit?
+                            </p>
+                            <div className="flex gap-4">
+                                <motion.button
+                                    onClick={() => setShowQuitModal(false)}
+                                    className="px-10 py-2 bg-[#DAA520] text-[#016F32] font-semibold rounded-sm cursor-pointer"
+                                    whileHover={{ scale: 1.05, backgroundColor: "#c99a1f" }}
+                                    whileTap={{ scale: 0.95 }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                                >
+                                    NO
+                                </motion.button>
+                                <motion.button
+                                    onClick={() => window.location.href = "/"}
+                                    className="px-10 py-2 bg-[#DAA520] text-[#016F32] font-semibold rounded-sm cursor-pointer"
+                                    whileHover={{ scale: 1.05, backgroundColor: "#c99a1f" }}
+                                    whileTap={{ scale: 0.95 }}
+                                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                                >
+                                    YES
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 
@@ -1388,13 +1436,22 @@ export default function Page() {
                     </AnimatePresence>
                 </div>
 
-                <div className="w-1/5 text-[#DAA520] text-center cursor-pointer">
-                    <div className="font-extrabold">
-                        X
-                    </div>
-                    <div>
-                        Quit
-                    </div>
+                <div className="w-1/5 flex justify-center">
+                    <motion.button
+                        onClick={() => setShowQuitModal(true)}
+                        className="text-[#DAA520] cursor-pointer flex flex-col items-center gap-1"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                        title="Quit Game"
+                    >
+                        <div className="flex items-center gap-1">
+                            <X />
+                        </div>
+                        <div className="text-xs">
+                            Quit
+                        </div>
+                    </motion.button>
                 </div>
             </div>
             <AnimatePresence mode="wait">
