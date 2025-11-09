@@ -3,3 +3,4 @@ node_modules/
 back/.env
 front/.env.local
 back/dist
+.VSCodeCounter/
