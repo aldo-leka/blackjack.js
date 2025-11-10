@@ -1128,6 +1128,10 @@ async function determinePayout(room: Room) {
 
         player.winningsThisRound = totalWinnings;
         player.cash = Math.max(player.cash! + totalChange, 0);
+        if (player.cash === 0) {
+            player.lastRefillAt = new Date();
+        }
+
         player.handResult = hand1Result;
         player.hand2Result = hand2Result;
         updateDbCash(player);
@@ -1142,10 +1146,15 @@ async function determinePayout(room: Room) {
 }
 
 function updateDbCash(player: UserData) {
+    const updateData: any = { cash: player.cash };
+    if (player.cash === 0) {
+        updateData.lastRefillAt = new Date();
+    }
+
     if (player.isAuthenticated && player.userId) {
         prisma.user.update({
             where: { id: player.userId },
-            data: { cash: player.cash }
+            data: updateData
         })
         .catch(err => {
             logError(`Failed to update cash for authenticated user ${player.nickname} (${player.userId})`, err);
@@ -1158,9 +1167,7 @@ function updateDbCash(player: UserData) {
                     countryCode: player.countryCode
                 }
             },
-            data: {
-                cash: player.cash
-            }
+            data: updateData
         })
         .catch(err => {
             logError(`Failed to update cash for anonymous user ${player.nickname}`, err);
