@@ -5,6 +5,7 @@ import { socket } from "@/lib/socket";
 import { useRouter, useSearchParams } from "next/navigation";
 import Loading from "@/components/Loading";
 import { authClient } from "@/lib/auth-client";
+import Image from "next/image";
 
 function Form() {
     const [nickname, setNickname] = useState("");
@@ -13,6 +14,11 @@ function Form() {
     const searchParams = useSearchParams();
 
     useEffect(() => {
+        const lsNickname = localStorage.getItem('nickname');
+        if (lsNickname && lsNickname.trim() !== "") {
+            setNickname(lsNickname);
+        }
+
         function handleNicknameUnavailable() {
             setError("Nickname is taken");
         }
@@ -27,38 +33,24 @@ function Form() {
         socket.on("nickname unavailable", handleNicknameUnavailable);
         socket.on("nickname accepted", handleNicknameAccepted);
 
-        const checkAndRegister = async () => {
-            const lsNickname = localStorage.getItem('nickname');
-            if (lsNickname && lsNickname.trim() !== "") {
-                setNickname(lsNickname);
-                try {
-                    const session = await authClient.getSession();
-                    const sessionToken = session?.data?.session?.token;
-
-                    socket.emit("register nickname", {
-                        nickname: lsNickname,
-                        sessionToken: sessionToken || null
-                    });
-                } catch (error) {
-                    socket.emit("register nickname", {
-                        nickname: lsNickname,
-                        sessionToken: null
-                    });
-                }
-            }
-        };
-
-        checkAndRegister();
-
         return () => {
             socket.off("nickname unavailable", handleNicknameUnavailable);
             socket.off("nickname accepted", handleNicknameAccepted);
         }
-    }, [router, searchParams]);
+    }, [router, searchParams, nickname]);
 
     return (
         <div className="flex flex-col items-center gap-4 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen">
-            <h2 className="text-[#DAA520] text-3xl font-bold m-4">Blackjack</h2>
+            <div className="relative mt-8">
+                <h2 className="text-[#DAA520] text-3xl font-bold">Christmas Blackjack</h2>
+                <Image
+                    src="/images/santa-hat.svg"
+                    alt="Santa Hat"
+                    width={40}
+                    height={40}
+                    className="absolute -top-2 -right-3"
+                />
+            </div>
             <div className="flex">
                 <input
                     className="bg-[#00000044] text-white placeholder-white px-3 py-1"
