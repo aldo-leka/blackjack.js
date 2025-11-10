@@ -7,7 +7,8 @@ export const PLAYER_TIMEOUT = 30;
 export const BET_TIME = 20;
 export const PLAY_TIME = 20;
 export const DEAL_TIME = 1.5;
-export const SHORT_WAIT = 2;
+export const SHORT_WAIT = 1.5;
+export const LONGER_WAIT = 2.5;
 export const DEALER_CHECK_BLACKJACK_TIME = 3;
 export const CHIPS = [
   1, // WHITE

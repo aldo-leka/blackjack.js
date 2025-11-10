@@ -29,7 +29,8 @@ import {
     PLAY_TIME,
     PLAYER_TIMEOUT,
     DEALER_CHECK_BLACKJACK_TIME,
-    HandResult
+    HandResult,
+    LONGER_WAIT
 } from './util';
 import prisma from './db';
 import { Room } from './models/room';
@@ -981,8 +982,6 @@ async function dealInitialCards(room: Room) {
         }
     }
 
-    await wait(SHORT_WAIT);
-
     startPlayerTurns(room);
 }
 
@@ -990,8 +989,6 @@ async function startPlayerTurns(room: Room) {
     room.phase = "players_turn";
     room.currentPlayerIndex = -1;
     io.to(room.name).emit("players turn", getRoomMap(room));
-
-    await wait(SHORT_WAIT);
     await nextPlayer(room);
 }
 
@@ -1085,7 +1082,6 @@ async function dealerPlays(room: Room) {
     }
 
     logInfo(`dealerPlays: dealer stands at ${dealerValue}`);
-    await wait(DEAL_TIME);
     await determinePayout(room);
 }
 
@@ -1140,7 +1136,7 @@ async function determinePayout(room: Room) {
     }
 
     io.to(room.name).emit("player result", getRoomMap(room));
-    await wait(SHORT_WAIT);
+    await wait(LONGER_WAIT);
 
     restartGame(room);
 }
