@@ -99,18 +99,6 @@ export default function Page() {
           >
             TOP-UP CHIPS
           </motion.button>
-          <motion.button
-            className="relative z-10 text-center p-2 text-[#016F32] font-semibold bg-[#DAA520] w-1/2 rounded-sm cursor-pointer"
-            onClick={async () => {
-              await authClient.signOut();
-              setIsSignedIn(false);
-            }}
-            whileHover={{ scale: 1.05, backgroundColor: "#c99a1f" }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 400, damping: 17 }}
-          >
-            LOGOUT
-          </motion.button>
         </>
       ) : (
         <motion.div
