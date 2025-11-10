@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getRooms, getLoggingCard } from '../app';
 import { MAX_PLAYERS_PER_ROOM } from '../util';
+import prisma from '../db';
 
 export const getRoomsAscii = (req: Request, res: Response) => {
     try {
@@ -46,5 +47,37 @@ export const getRoomsAscii = (req: Request, res: Response) => {
         res.type('text/plain').send(ascii);
     } catch (error) {
         res.status(500).send('Failed to fetch rooms');
+    }
+};
+
+export const getLogs = async (req: Request, res: Response) => {
+    try {
+        const { level, limit = '100', offset = '0' } = req.query;
+
+        const whereClause = level && typeof level === 'string'
+            ? { level: level.toLowerCase() }
+            : undefined;
+
+        const logs = await prisma.log.findMany({
+            where: whereClause,
+            orderBy: { timestamp: 'desc' },
+            take: parseInt(limit as string),
+            skip: parseInt(offset as string),
+        });
+
+        const totalCount = await prisma.log.count({
+            where: whereClause,
+        });
+
+        res.json({
+            logs,
+            pagination: {
+                total: totalCount,
+                limit: parseInt(limit as string),
+                offset: parseInt(offset as string),
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch logs' });
     }
 };

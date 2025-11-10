@@ -1,14 +1,16 @@
+import prisma from "./db";
+
 export function log(message: any, level: "info" | "warn" | "error", ...optionalParams: any[]) {
     const date = new Date();
 
     // this timestamp should be in UTC so wherever it's hosted, there's no timezone ambiguity
     const timestamp = date.toISOString();
-    
+
     // conversion to (my) Amsterdam timezone: +1 (winter) or +2 (summer)
     // utcDate.toLocaleString('nl-NL', {
     //     timeZone: 'Europe/Amsterdam'
     // });
-    
+
     const msg = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
     switch (level) {
         case "warn":
@@ -21,6 +23,27 @@ export function log(message: any, level: "info" | "warn" | "error", ...optionalP
         default:
             console.log(msg, ...optionalParams);
             break;
+    }
+
+    persistLogToDatabase(level, message, optionalParams).catch((err) => {
+        console.error('[LOG PERSISTENCE ERROR]', err);
+    });
+}
+
+async function persistLogToDatabase(level: string, message: any, metadata?: any[]) {
+    try {
+        const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
+        const metadataStr = metadata && metadata.length > 0 ? JSON.stringify(metadata) : null;
+
+        await prisma.log.create({
+            data: {
+                level,
+                message: messageStr,
+                metadata: metadataStr,
+            },
+        });
+    } catch (error) {
+        console.error('[DB LOG ERROR]', error);
     }
 }
 

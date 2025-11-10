@@ -83,3 +83,15 @@ model TempUser {
   @@index([lastRefillAt])
   @@map("tempuser")
 }
+
+model Log {
+  id        String   @id @default(cuid())
+  level     String   @db.VarChar(10)
+  message   String   @db.Text
+  metadata  String?  @db.Text
+  timestamp DateTime @default(now())
+
+  @@index([level])
+  @@index([timestamp])
+  @@map("log")
+}
