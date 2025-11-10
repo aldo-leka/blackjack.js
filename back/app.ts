@@ -548,9 +548,11 @@ io.on('connection', async (socket) => {
         let checkCount = 0;
         let totalPlayers = 0;
         room.players.forEach(player => {
-            totalPlayers++;
-            if (player.check === true) {
-                checkCount++;
+            if (player.cash && player.cash > 0) {
+                totalPlayers++;
+                if (player.check === true) {
+                    checkCount++;
+                }
             }
         });
 
