@@ -25,9 +25,11 @@ export function log(message: any, level: "info" | "warn" | "error", ...optionalP
             break;
     }
 
-    persistLogToDatabase(level, message, optionalParams).catch((err) => {
-        console.error('[LOG PERSISTENCE ERROR]', err);
-    });
+    if (process.env.NODE_ENV === 'production') {
+        persistLogToDatabase(level, message, optionalParams).catch((err) => {
+            console.error('[LOG PERSISTENCE ERROR]', err);
+        });
+    }
 }
 
 async function persistLogToDatabase(level: string, message: any, metadata?: any[]) {
