@@ -29,15 +29,35 @@ export const auth = betterAuth({
                 checkout({
                     products: [
                         {
-                            productId: config.polarProduct10Id,
-                            slug: "Blackjack-10",
+                            productId: config.polarProductStarterId,
+                            slug: "Blackjack-Starter",
                         },
                         {
-                            productId: config.polarProductOwnId,
-                            slug: "Blackjack-Own",
+                            productId: config.polarProductQuickBoostId,
+                            slug: "Blackjack-Quick-Boost",
+                        },
+                        {
+                            productId: config.polarProductValuePackId,
+                            slug: "Blackjack-Value-Pack",
+                        },
+                        {
+                            productId: config.polarProductProPackId,
+                            slug: "Blackjack-Pro-Pack",
+                        },
+                        {
+                            productId: config.polarProductHighRollerId,
+                            slug: "Blackjack-High-Roller-Pack",
+                        },
+                        {
+                            productId: config.polarProductVipPackId,
+                            slug: "Blackjack-VIP-Pack",
+                        },
+                        {
+                            productId: config.polarProductWhalePackId,
+                            slug: "Blackjack-Whale-Pack",
                         }
                     ],
-                    successUrl: config.frontendUrl,
+                    successUrl: `${config.frontendUrl}/game`,
                     authenticatedUsersOnly: true,
                 }),
                 webhooks({
@@ -45,7 +65,6 @@ export const auth = betterAuth({
                     onOrderPaid: async (payload) => {
                         const order = payload.data;
                         const userId = order.customer?.externalId;
-                        const subtotalAmount = order.subtotalAmount; // Amount in cents (before tax)
                         const productId = order.productId;
 
                         if (!userId) {
@@ -53,20 +72,22 @@ export const auth = betterAuth({
                             return;
                         }
 
-                        // Calculate cash to add based on product
-                        // Default: $1 = 10 in-game cash
-                        let cashToAdd = 0;
+                        // Map product IDs to chip amounts
+                        const productChipMapping: Record<string, number> = {
+                            [config.polarProductStarterId]: 150,
+                            [config.polarProductQuickBoostId]: 500,
+                            [config.polarProductValuePackId]: 900,
+                            [config.polarProductProPackId]: 2000,
+                            [config.polarProductHighRollerId]: 4500,
+                            [config.polarProductVipPackId]: 12500,
+                            [config.polarProductWhalePackId]: 28000,
+                        };
 
-                        if (productId === config.polarProduct10Id) {
-                            // Package 1: Fixed amount
-                            cashToAdd = 10;
-                        } else if (productId === config.polarProductOwnId) {
-                            // Package 2 (Pay what you want): Convert amount to cash
-                            // subtotalAmount is in cents, so divide by 100 to get dollars, then multiply by 10
-                            cashToAdd = Math.floor((subtotalAmount / 100) * 10);
-                        } else {
-                            // Unknown product, use default conversion
-                            cashToAdd = Math.floor((subtotalAmount / 100) * 10);
+                        const cashToAdd = productChipMapping[productId];
+
+                        if (!cashToAdd) {
+                            logError(`Unknown product ID: ${productId}`);
+                            return;
                         }
 
                         try {
@@ -78,7 +99,7 @@ export const auth = betterAuth({
                                     }
                                 }
                             });
-                            logInfo(`Added ${cashToAdd} cash to user ${userId}`);
+                            logInfo(`Added ${cashToAdd} cash to user ${userId} for product ${productId}`);
                         } catch (error) {
                             logError(`Failed to add cash to user ${userId}:`, error);
                         }

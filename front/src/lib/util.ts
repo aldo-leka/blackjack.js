@@ -26,6 +26,24 @@ export type HandResult = {
     result: string;
 }
 
+export function convertToChips(cashAmount: number): number[] {
+    let chips = [0, 0, 0, 0, 0];
+
+    for (let i = CHIPS.length - 1; i >= 0; i--) {
+        while (cashAmount / CHIPS[i] >= 1) {
+            chips[i] += 1;
+            cashAmount -= CHIPS[i];
+        }
+    }
+
+    if (cashAmount == 1) {
+        chips[0] += 1;
+        cashAmount -= 1;
+    }
+
+    return chips;
+}
+
 export const DECK: Card[] = [
     { rank: "A", suit: "spades", value: [1, 11], imageUrl: "/images/ace_of_spades.png", alt: "Ace of Spades playing card" },
     { rank: "2", suit: "spades", value: [2], imageUrl: "/images/2_of_spades.png", alt: "Two of Spades playing card" },

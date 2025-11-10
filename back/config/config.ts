@@ -12,8 +12,13 @@ interface Config {
     googleClientSecret: string;
     polarAccessToken: string;
     polarWebhookSecret: string;
-    polarProduct10Id: string;
-    polarProductOwnId: string;
+    polarProductStarterId: string;
+    polarProductQuickBoostId: string;
+    polarProductValuePackId: string;
+    polarProductProPackId: string;
+    polarProductHighRollerId: string;
+    polarProductVipPackId: string;
+    polarProductWhalePackId: string;
     cronSecret: string;
 }
 
@@ -27,8 +32,13 @@ const config: Config = {
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     polarAccessToken: process.env.POLAR_ACCESS_TOKEN || '',
     polarWebhookSecret: process.env.POLAR_WEBHOOK_SECRET || '',
-    polarProduct10Id: process.env.POLAR_PRODUCT_10_ID || '',
-    polarProductOwnId: process.env.POLAR_PRODUCT_OWN_ID || '',
+    polarProductStarterId: process.env.POLAR_PRODUCT_STARTER_ID || '',
+    polarProductQuickBoostId: process.env.POLAR_PRODUCT_QUICK_BOOST_ID || '',
+    polarProductValuePackId: process.env.POLAR_PRODUCT_VALUE_PACK_ID || '',
+    polarProductProPackId: process.env.POLAR_PRODUCT_PRO_PACK_ID || '',
+    polarProductHighRollerId: process.env.POLAR_PRODUCT_HIGH_ROLLER_ID || '',
+    polarProductVipPackId: process.env.POLAR_PRODUCT_VIP_PACK_ID || '',
+    polarProductWhalePackId: process.env.POLAR_PRODUCT_WHALE_PACK_ID || '',
     cronSecret: process.env.CRON_SECRET || '',
 };
 

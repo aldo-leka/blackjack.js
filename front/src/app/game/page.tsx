@@ -6,7 +6,7 @@ import { Check, Currency, Hand, Music, Plus, Repeat, Split, X, Volume2, VolumeX 
 import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
 import { useRouter } from "next/navigation";
-import { Card, CHIPS, DECK, HandResult, HandValue, REFILL_INTERVAL } from "@/lib/util";
+import { Card, CHIPS, DECK, HandResult, HandValue, REFILL_INTERVAL, convertToChips } from "@/lib/util";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import Snowfall from "react-snowfall";
@@ -671,24 +671,6 @@ export default function Page() {
         betChips = convertToChips(totalBet);
     }
 
-    function convertToChips(cashAmount: number) {
-        let chips = [0, 0, 0, 0, 0];
-
-        for (let i = CHIPS.length - 1; i >= 0; i--) {
-            while (cashAmount / CHIPS[i] >= 1) {
-                chips[i] += 1;
-                cashAmount -= CHIPS[i];
-            }
-        }
-
-        if (cashAmount == 1) {
-            chips[0] += 1;
-            cashAmount -= 1;
-        }
-
-        return chips;
-    }
-
     function addBet(index: number) {
         if (CHIPS[index] <= cash) {
             setTotalBet(prev => (prev ?? 0) + CHIPS[index]);
@@ -1326,7 +1308,16 @@ export default function Page() {
                             transition={{ type: "spring", stiffness: 300, damping: 25 }}
                             className="relative flex flex-col items-center gap-2"
                         >
-                            <h2 className="text-[#DAA520] text-3xl font-bold m-4">Blackjack</h2>
+                            <div className="relative m-4">
+                                <h2 className="text-[#DAA520] text-3xl font-bold">Christmas Blackjack</h2>
+                                <Image
+                                    src="/images/santa-hat.svg"
+                                    alt="Santa Hat"
+                                    width={40}
+                                    height={40}
+                                    className="absolute -top-2 -right-3"
+                                />
+                            </div>
                             <p className="text-white italic font-semibold">
                                 Are you sure you want to quit?
                             </p>
@@ -1341,7 +1332,7 @@ export default function Page() {
                                     NO
                                 </motion.button>
                                 <motion.button
-                                    onClick={() => window.location.href = "/"}
+                                    onClick={() => router.push("/")}
                                     className="px-10 py-2 bg-[#DAA520] text-[#016F32] font-semibold rounded-sm cursor-pointer"
                                     whileHover={{ scale: 1.05, backgroundColor: "#c99a1f" }}
                                     whileTap={{ scale: 0.95 }}
