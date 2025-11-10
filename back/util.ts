@@ -1,6 +1,7 @@
 export const MAX_ROOM_ID = 10_000;
 export const MAX_PLAYERS_PER_ROOM = 3;
-export const DAILY_REFILL_VALUE = 75;
+export const REFILL_VALUE = 75;
+export const REFILL_INTERVAL = 900;
 export const ROOM_NAME_FORMAT = "ROOM_{id}";
 export const PLAYER_TIMEOUT = 30;
 export const BET_TIME = 20;

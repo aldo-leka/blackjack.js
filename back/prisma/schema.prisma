@@ -18,6 +18,8 @@ model User {
   sessions      Session[]
   accounts      Account[]
   cash          Int       @default(0)
+  nickname      String?   @db.VarChar(255)
+  lastRefillAt  DateTime  @default(now())
 
   @@map("user")
 }

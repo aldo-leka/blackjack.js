@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { socket } from "@/lib/socket";
 import { useRouter, useSearchParams } from "next/navigation";
 import Loading from "@/components/Loading";
+import { authClient } from "@/lib/auth-client";
 
 function Form() {
     const [nickname, setNickname] = useState("");
@@ -16,8 +17,9 @@ function Form() {
             setError("Nickname is taken");
         }
 
-        function handleNicknameAccepted() {
-            localStorage.setItem("nickname", nickname);
+        function handleNicknameAccepted(data?: { nickname: string; isAuthenticated: boolean }) {
+            const finalNickname = data?.nickname || nickname;
+            localStorage.setItem("nickname", finalNickname);
             const returnUrl = searchParams.get('returnUrl') || '/';
             router.push(returnUrl);
         }
@@ -25,11 +27,28 @@ function Form() {
         socket.on("nickname unavailable", handleNicknameUnavailable);
         socket.on("nickname accepted", handleNicknameAccepted);
 
-        const lsNickname = localStorage.getItem('nickname');
-        if (lsNickname && lsNickname.trim() !== "") {
-            setNickname(lsNickname);
-            socket.emit("register nickname", lsNickname);
-        }
+        const checkAndRegister = async () => {
+            const lsNickname = localStorage.getItem('nickname');
+            if (lsNickname && lsNickname.trim() !== "") {
+                setNickname(lsNickname);
+                try {
+                    const session = await authClient.getSession();
+                    const sessionToken = session?.data?.session?.token;
+
+                    socket.emit("register nickname", {
+                        nickname: lsNickname,
+                        sessionToken: sessionToken || null
+                    });
+                } catch (error) {
+                    socket.emit("register nickname", {
+                        nickname: lsNickname,
+                        sessionToken: null
+                    });
+                }
+            }
+        };
+
+        checkAndRegister();
 
         return () => {
             socket.off("nickname unavailable", handleNicknameUnavailable);
@@ -48,7 +67,22 @@ function Form() {
                     onChange={(e) => setNickname(e.target.value)}
                 />
                 <button
-                    onClick={() => socket.emit("register nickname", nickname)}
+                    onClick={async () => {
+                        try {
+                            const session = await authClient.getSession();
+                            const sessionToken = session?.data?.session?.token;
+
+                            socket.emit("register nickname", {
+                                nickname: nickname,
+                                sessionToken: sessionToken || null
+                            });
+                        } catch (error) {
+                            socket.emit("register nickname", {
+                                nickname: nickname,
+                                sessionToken: null
+                            });
+                        }
+                    }}
                     disabled={!nickname.trim()}
                     className="w-8 text-[#016F32] font-semibold bg-[#DAA520] disabled:opacity-50"
                 >

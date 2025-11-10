@@ -6,6 +6,8 @@ export const CHIPS = [
     500 // BLUE
 ];
 
+export const REFILL_INTERVAL = 900;
+
 export type Card = {
     rank: string;
     suit: string;

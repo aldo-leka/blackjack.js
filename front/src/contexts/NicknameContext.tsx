@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { socket } from "@/lib/socket";
+import { authClient } from "@/lib/auth-client";
 
 interface NicknameContextType {
     isHandshakeComplete: boolean;
@@ -25,16 +26,39 @@ export function NicknameProvider({ children }: { children: React.ReactNode }) {
 
         // Do the handshake with the server to confirm that
         // nickname is set (or not).
-        const storedNickname = localStorage.getItem('nickname');
-        if (storedNickname && storedNickname.trim() !== "") {
-            setNickname(storedNickname);
-            socket.emit("register nickname", storedNickname);
-        } else {
-            // Redirect to nickname page with return URL
-            router.push(`/set-nickname?returnUrl=${encodeURIComponent(pathname)}`);
-        }
+        const registerNickname = async () => {
+            const storedNickname = localStorage.getItem('nickname');
+            if (storedNickname && storedNickname.trim() !== "") {
+                setNickname(storedNickname);
+                try {
+                    const session = await authClient.getSession();
+                    const sessionToken = session?.data?.session?.token;
+                    socket.emit("register nickname", {
+                        nickname: storedNickname,
+                        sessionToken: sessionToken || null
+                    });
+                } catch (error) {
+                    socket.emit("register nickname", {
+                        nickname: storedNickname,
+                        sessionToken: null
+                    });
+                }
+            } 
+            else {
+                // Redirect to nickname page with return URL
+                router.push(`/set-nickname?returnUrl=${encodeURIComponent(pathname)}`);
+            }
+        };
 
-        function handleNicknameAccepted() {
+        registerNickname();
+
+        function handleNicknameAccepted(data?: { nickname: string; isAuthenticated: boolean }) {
+            // If server sent back a different nickname (for authenticated users), update it
+            if (data && data.nickname && data.nickname !== nickname) {
+                console.log(`Server corrected nickname from '${nickname}' to '${data.nickname}'`);
+                setNickname(data.nickname);
+                localStorage.setItem('nickname', data.nickname);
+            }
             setIsHandshakeComplete(true);
         }
 

@@ -15,7 +15,7 @@ import { IpApiResponse } from './models/ip-api';
 import { UserData } from './models/user-data';
 import {
     CHIPS,
-    DAILY_REFILL_VALUE,
+    REFILL_VALUE,
     DECK, NUM_DECKS,
     MAX_PLAYERS_PER_ROOM,
     MAX_ROOM_ID, ROOM_NAME_FORMAT,
@@ -70,61 +70,140 @@ let rooms = new Map<string, Room>();
 let currentRoomId = 0;
 
 io.on('connection', async (socket) => {
-    socket.on("register nickname", async (nickname) => {
-        logInfo(`register nickname: handshake - '${nickname}'`);
+    socket.on("register nickname", async (data) => {
+        let nickname = typeof data === 'string' ? data : data.nickname;
+        const sessionToken = typeof data === 'object' ? data.sessionToken : null;
+
+        logInfo(`register nickname: handshake - '${nickname}' (token: ${sessionToken ? 'yes' : 'no'})`);
+
+        let authenticatedUser = null;
+        let isAuthenticated = false;
+        if (sessionToken) {
+            try {
+                const session = await prisma.session.findUnique({
+                    where: { token: sessionToken },
+                    include: { user: true }
+                });
+
+                if (session && session.expiresAt > new Date()) {
+                    authenticatedUser = session.user;
+                    isAuthenticated = true;
+                    logInfo(`register nickname: authenticated as user ${authenticatedUser.id} (${authenticatedUser.email})`);
+
+                    // For authenticated users, use their DB nickname if it exists
+                    if (authenticatedUser.nickname) {
+                        if (authenticatedUser.nickname !== nickname) {
+                            logInfo(`register nickname: overriding '${nickname}' with DB nickname '${authenticatedUser.nickname}' for user ${authenticatedUser.id}`);
+                            nickname = authenticatedUser.nickname;
+                        }
+                    } else {
+                        // If user doesn't have a nickname yet, save the one they provided
+                        await prisma.user.update({
+                            where: { id: authenticatedUser.id },
+                            data: { nickname }
+                        });
+                        logInfo(`register nickname: saved nickname '${nickname}' for user ${authenticatedUser.id}`);
+                    }
+                }
+                else {
+                    logWarning(`register nickname: invalid or expired session token`);
+                }
+            }
+            catch (error) {
+                logError(`register nickname: error verifying session`, error);
+            }
+        }
+
+        // For anonymous users, check if nickname belongs to an authenticated user in DB
+        if (!isAuthenticated) {
+            const userWithNickname = await prisma.user.findFirst({
+                where: { nickname }
+            });
+
+            if (userWithNickname) {
+                logWarning(`register nickname: anonymous user tried to use authenticated user's nickname '${nickname}'`);
+                socket.emit('nickname unavailable');
+                return;
+            }
+        }
+
         const existing = users.get(nickname);
 
         if (existing) {
             if (!existing.disconnected && existing.socketId != socket.id) {
-                logInfo(`register nickname: '${nickname}' unavailable`);
-                socket.emit('nickname unavailable');
-                return;
+                // For authenticated users, verify it's the same user
+                if (isAuthenticated && existing.userId === authenticatedUser!.id) {
+                    // Same authenticated user reconnecting from different socket, allow it
+                    logInfo(`register nickname: authenticated user ${authenticatedUser!.id} reconnecting`);
+                } else {
+                    logInfo(`register nickname: '${nickname}' unavailable`);
+                    socket.emit('nickname unavailable');
+                    return;
+                }
             }
 
             clearTimeout(existing.disconnectedTimer);
             existing.disconnected = false;
-            logInfo(`register nickname: ${nickname} from ${existing.countryCode} reconnected before timeout`);
+            logInfo(`register nickname: ${nickname} reconnected before timeout`);
         }
 
         socket.data.nickname = nickname;
+        socket.data.userId = authenticatedUser?.id;
 
         const ip = getIp(socket);
         const countryCode = existing?.countryCode || await getCountryCodeFromIP(ip) || "somewhere";
 
-        // Don't allow users to get a refill if same nickname & country
-        const tempUser = await prisma.tempUser.upsert({
-            where: {
-                nickname_countryCode: { nickname, countryCode }
-            },
-            update: {
-                ip,
-                updatedAt: new Date()
-            },
-            create: {
-                nickname,
-                ip,
-                countryCode,
-                cash: DAILY_REFILL_VALUE,
-            }
-        });
+        let cash: number;
+        let lastRefillAt: Date;
+        if (isAuthenticated) {
+            cash = authenticatedUser!.cash;
+            lastRefillAt = authenticatedUser!.lastRefillAt;
+        } else {
+            const tempUser = await prisma.tempUser.upsert({
+                where: {
+                    nickname_countryCode: { nickname, countryCode }
+                },
+                update: {
+                    ip,
+                    updatedAt: new Date()
+                },
+                create: {
+                    nickname,
+                    ip,
+                    countryCode,
+                    cash: REFILL_VALUE,
+                }
+            });
+            cash = tempUser.cash;
+            lastRefillAt = tempUser.lastRefillAt;
+        }
 
         if (existing) {
             existing.socketId = socket.id;
             existing.countryCode = countryCode;
-            existing.cash = tempUser.cash;
+            existing.userId = authenticatedUser?.id;
+            existing.isAuthenticated = isAuthenticated;
+            existing.cash = cash;
+            existing.lastRefillAt = lastRefillAt;
         }
         else {
             users.set(nickname, {
                 socketId: socket.id,
                 nickname,
                 countryCode,
-                cash: tempUser.cash,
+                userId: authenticatedUser?.id,
+                isAuthenticated,
+                cash,
+                lastRefillAt,
                 disconnected: false,
             });
         }
 
-        logInfo(`register nickname: handshake complete - '${nickname}' from ${countryCode} (ip: ${ip})`);
-        socket.emit('nickname accepted');
+        logInfo(`register nickname: handshake complete - '${nickname}' from ${countryCode} (ip: ${ip}, auth: ${isAuthenticated})`);
+        socket.emit('nickname accepted', {
+            nickname: nickname,
+            isAuthenticated: isAuthenticated
+        });
     });
 
     socket.on("disconnect", async () => {
@@ -1063,19 +1142,30 @@ async function determinePayout(room: Room) {
 }
 
 function updateDbCash(player: UserData) {
-    prisma.tempUser.update({
-        where: {
-            nickname_countryCode: {
-                nickname: player.nickname,
-                countryCode: player.countryCode
+    if (player.isAuthenticated && player.userId) {
+        prisma.user.update({
+            where: { id: player.userId },
+            data: { cash: player.cash }
+        })
+        .catch(err => {
+            logError(`Failed to update cash for authenticated user ${player.nickname} (${player.userId})`, err);
+        });
+    } else {
+        prisma.tempUser.update({
+            where: {
+                nickname_countryCode: {
+                    nickname: player.nickname,
+                    countryCode: player.countryCode
+                }
+            },
+            data: {
+                cash: player.cash
             }
-        },
-        data: {
-            cash: player.cash
-        }
-    }).catch(err => {
-        logError(`Failed to update cash for ${player.nickname}`, err);
-    });
+        })
+        .catch(err => {
+            logError(`Failed to update cash for anonymous user ${player.nickname}`, err);
+        });
+    }
 }
 
 function getHandResult(hand: Card[], dealerValue: number, dealerBusted: boolean, bet: number, splitted: boolean = false) {
@@ -1246,6 +1336,7 @@ function getUserMap(user: UserData) {
         nickname: user.nickname,
         countryCode: user.countryCode,
         cash: user.cash,
+        lastRefillAt: user.lastRefillAt?.toISOString(),
         bet: user.bet,
         bet2: user.bet2,
         totalBet: user.bet
@@ -1336,6 +1427,14 @@ async function getCountryCodeFromIP(ip: string) {
 
 export function getRooms() {
     return rooms;
+}
+
+export function getUsers() {
+    return users;
+}
+
+export function getIo() {
+    return io;
 }
 
 export default server;

@@ -5,7 +5,8 @@ import { socket } from "@/lib/socket";
 import { Check, Currency, Hand, Music, Plus, Repeat, Split, X, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
-import { Card, CHIPS, DECK, HandResult, HandValue } from "@/lib/util";
+import { useRouter } from "next/navigation";
+import { Card, CHIPS, DECK, HandResult, HandValue, REFILL_INTERVAL } from "@/lib/util";
 import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import Snowfall from "react-snowfall";
@@ -37,6 +38,7 @@ interface ApiPlayer {
     nickname: string;
     countryCode: string;
     cash?: number;
+    lastRefillAt?: string;
     bet?: number;
     bet2?: number;
     totalBet?: number;
@@ -73,6 +75,7 @@ interface ApiCard {
 
 export default function Page() {
     const { nickname, isHandshakeComplete } = useNickname();
+    const router = useRouter();
     const [worth, setWorth] = useState<number>();
     const [bet, setBet] = useState<number>();
     const [bet2, setBet2] = useState<number>();
@@ -104,6 +107,7 @@ export default function Page() {
     const [isMuted, setIsMuted] = useState(false);
     const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
     const [showQuitModal, setShowQuitModal] = useState(false);
+    const [refillCountdown, setRefillCountdown] = useState<number>();
 
     useEffect(() => {
         function onConnect() {
@@ -140,14 +144,11 @@ export default function Page() {
                 });
 
                 if (stations.length > 0) {
-                    // Find a station with a working stream
                     const station = stations.find(s => s.urlResolved);
                     if (station) {
                         audio = new Audio(station.urlResolved);
                         audio.loop = false;
                         audio.volume = 0.3; // Set to 30% volume
-
-                        // Attempt to autoplay
                         audio.play().catch(err => {
                             console.log("Autoplay prevented by browser:", err);
                         });
@@ -180,6 +181,34 @@ export default function Page() {
         setIsMuted(!isMuted);
     };
 
+    const calculateRemainingRefillTime = (lastRefillAt: string, cash: number): number | undefined => {
+        if (cash > 0) return undefined;
+
+        const lastRefill = new Date(lastRefillAt);
+        const now = new Date();
+        const elapsedSeconds = Math.floor((now.getTime() - lastRefill.getTime()) / 1000);
+        const remainingSeconds = REFILL_INTERVAL - elapsedSeconds;
+
+        return remainingSeconds > 0 ? remainingSeconds : undefined;
+    };
+
+    useEffect(() => {
+        if (refillCountdown === undefined || refillCountdown <= 0) {
+            return;
+        }
+
+        const timer = setInterval(() => {
+            setRefillCountdown(prev => {
+                if (prev === undefined || prev <= 1) {
+                    return undefined;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [refillCountdown]);
+
     useEffect(() => {
         if (!isHandshakeComplete) {
             return;
@@ -203,6 +232,11 @@ export default function Page() {
 
             setOtherPlayers(otherPlayers);
             setDealerHand(room.dealerHand?.map(c => getCard(c)) ?? []);
+
+            if (me.lastRefillAt) {
+                const remaining = calculateRemainingRefillTime(me.lastRefillAt, me.cash ?? 0);
+                setRefillCountdown(remaining);
+            }
 
             console.log(`joinedRoom: i joined room with cash ${me.cash}, other players: ${JSON.stringify(otherPlayers)}`);
         }
@@ -293,6 +327,11 @@ export default function Page() {
             setHand(me.hand?.map(c => getCard(c)) ?? []);
             setDealerHand(room.dealerHand?.map(c => getCard(c)) ?? []);
             setHandValue(me.handValue);
+
+            if (me.lastRefillAt) {
+                const remaining = calculateRemainingRefillTime(me.lastRefillAt, me.cash ?? 0);
+                setRefillCountdown(remaining);
+            }
 
             console.log(`alreadyInRoom: cash: ${me.cash}, total bet: ${me.totalBet}, other players: ${JSON.stringify(otherPlayers)}`);
         }
@@ -515,6 +554,19 @@ export default function Page() {
                 setHand2Result(undefined);
                 setTotalWinnings(undefined);
             }, 3000);
+
+            if (me.lastRefillAt) {
+                const remaining = calculateRemainingRefillTime(me.lastRefillAt, me.worth);
+                setRefillCountdown(remaining);
+            }
+        }
+
+        function userRefilled(refillNickname: string, newCash: number) {
+            console.log(`userRefilled: ${refillNickname} refilled with ${newCash}`);
+            if (refillNickname === nickname) {
+                setWorth(newCash);
+                setRefillCountdown(undefined);
+            }
         }
 
         function getPlayerMap(player: ApiPlayer) {
@@ -522,6 +574,7 @@ export default function Page() {
                 nickname: player.nickname,
                 countryCode: player.countryCode,
                 worth: player.cash!,
+                lastRefillAt: player.lastRefillAt,
                 bet: player.bet,
                 bet2: player.bet2,
                 totalBet: player.totalBet,
@@ -582,6 +635,7 @@ export default function Page() {
         socket.on("reveal dealer card", revealDealerCard);
         socket.on("user splitted", playerSplitted);
         socket.on("player result", playerResult);
+        socket.on("user refilled", userRefilled);
 
         return () => {
             socket.off("disconnected", disconnected);
@@ -606,6 +660,7 @@ export default function Page() {
             socket.off("reveal dealer card", revealDealerCard);
             socket.off("user splitted", playerSplitted);
             socket.off("player result", playerResult);
+            socket.off("user refilled", userRefilled);
         }
     }, [isHandshakeComplete]);
 
@@ -675,13 +730,15 @@ export default function Page() {
         && currentBet && worth && worth >= currentBet; // sufficient cash to double the current hand's bet
 
     return (
-        <div className="grid grid-rows-4 grid-cols-2 overflow-hidden bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
-            <Snowfall />
-            <div id="dealer-zone" className="col-span-2">
+        <div className="relative grid grid-rows-4 grid-cols-2 overflow-hidden bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
+            <div className="fixed inset-0 z-0 pointer-events-none">
+                <Snowfall snowflakeCount={90} />
+            </div>
+            <div id="dealer-zone" className="relative z-10 col-span-2">
                 {getDealerComponent()}
             </div>
 
-            <div id="player-zone" className="col-span-2 grid grid-cols-2 gap-2 px-8">
+            <div id="player-zone" className="relative z-10 col-span-2 grid grid-cols-2 gap-2 px-8">
                 <div className="flex flex-col items-center gap-2 justify-self-end">
                     <h2 className="flex text-white italic font-semibold">
                         You {worth ? <span className="inline-flex items-center"><Currency size={16} className="ml-2" />{worth}</span> : <></>}
@@ -990,6 +1047,22 @@ export default function Page() {
                             </AnimatePresence>
                             <div className="flex justify-center items-center relative">
                                 <AnimatePresence>
+                                    {worth === 0 && cash === 0 && refillCountdown !== undefined && refillCountdown > 0 ? (
+                                        <motion.div
+                                            key="refill-countdown"
+                                            className="flex flex-col items-center"
+                                            initial={{ opacity: 0, scale: 0.8 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.8 }}
+                                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                        >
+                                            <span className="text-white text-xs">Auto top-up in</span>
+                                            <span className="text-white italic font-semibold text-lg">
+                                                {Math.floor(refillCountdown / 60)}:{String(refillCountdown % 60).padStart(2, '0')}
+                                            </span>
+                                        </motion.div>
+                                    ) : (
+                                        <>
                                     {betChips[0] > 0 && (
                                         <motion.div
                                             key="white-chip"
@@ -1045,12 +1118,28 @@ export default function Page() {
                                             <Chip color="blue" amount={betChips[4]} size={30} />
                                         </motion.div>
                                     )}
+                                        </>
+                                    )}
                                 </AnimatePresence>
                             </div>
                         </motion.div>
                     </div>
                     <div className="flex gap-2 justify-between">
-                        {phase === "players_turn" && isMyTurn &&
+                        {worth === 0 && cash === 0 && refillCountdown !== undefined && refillCountdown > 0 ? (
+                            <motion.button
+                                onClick={() => router.push('/product')}
+                                className="col-span-2 px-2 py-1 bg-[#DAA520] rounded-sm font-semibold cursor-pointer text-[#016F32]"
+                                title="Buy chips now"
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.8 }}
+                                whileHover={{ scale: 1.05, backgroundColor: "#c99a1f" }}
+                                whileTap={{ scale: 0.95 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            >
+                                TOP-UP CHIPS
+                            </motion.button>
+                        ) : phase === "players_turn" && isMyTurn ? (
                             <div className="grid grid-cols-2 gap-2">
                                 <motion.button
                                     onClick={() => {
@@ -1115,8 +1204,7 @@ export default function Page() {
                                     2X
                                 </motion.button>
                             </div>
-                        }
-                        {phase === "bet" &&
+                        ) : phase === "bet" ? (
                             <div className="grid grid-cols-2 gap-2">
                                 <motion.button
                                     onClick={() => {
@@ -1183,12 +1271,12 @@ export default function Page() {
                                     </motion.button> : <></>
                                 }
                             </div>
-                        }
+                        ) : null}
                     </div>
                 </div>
             </div>
 
-            <div id="other-players" className="col-span-2 grid grid-cols-2 gap-2 px-8">
+            <div id="other-players" className="relative z-10 col-span-2 grid grid-cols-2 gap-2 px-8">
                 <div className="justify-self-end">
                     <AnimatePresence mode="wait">
                         {getOtherPlayerComponent(0)}
@@ -1202,7 +1290,7 @@ export default function Page() {
                 </div>
             </div>
 
-            <div id="chat" className="col-span-2">
+            <div id="chat" className="relative z-10 col-span-2">
 
             </div>
 
@@ -1315,13 +1403,9 @@ export default function Page() {
                             {dealerHand.map((card, index) => {
                                 const isFaceDown = card.rank === "facedown";
                                 const isFirstCard = index === 0;
-
-                                // Calculate position offset when revealing
                                 const baseLeft = index * 16;
                                 const spreadOffset = isDealerRevealingCard && !isFirstCard ? 30 : 0;
                                 const leftPosition = baseLeft + spreadOffset;
-
-                                // Animation for checking the facedown card
                                 const checkingAnimation = isFaceDown && isDealerCheckingCard ? {
                                     rotateX: [0, -15, -15, 0],
                                     y: [0, -10, -10, 0],
@@ -1513,7 +1597,6 @@ export default function Page() {
                                 );
                             })()
                         ) : (
-                            // Single hand scenario
                             <span className={`inline-flex items-center gap-1 ${handResult?.result === "win" || handResult?.result === "blackjack"
                                 ? "text-green-400"
                                 : handResult?.result === "lose"

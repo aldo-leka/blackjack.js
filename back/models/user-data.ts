@@ -5,9 +5,12 @@ export interface UserData {
     socketId: string;
     nickname: string;
     countryCode: string;
+    userId?: string;
+    isAuthenticated: boolean;
     room?: Room;
     roomName?: string;
     cash?: number;
+    lastRefillAt?: Date;
     bet?: number;
     bet2?: number;
     totalBet?: number;
