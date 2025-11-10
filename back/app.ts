@@ -121,7 +121,7 @@ io.on('connection', async (socket) => {
             });
 
             if (userWithNickname) {
-                logWarning(`register nickname: anonymous user tried to use authenticated user's nickname '${nickname}'`);
+                logInfo(`register nickname: anonymous user tried to use authenticated user's nickname '${nickname}'`);
                 socket.emit('nickname unavailable');
                 return;
             }
