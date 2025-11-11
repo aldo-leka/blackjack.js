@@ -13,6 +13,7 @@ import Snowfall from "react-snowfall";
 import radio from "@/lib/radio";
 import { soundManager, playSounds } from "@/lib/sounds";
 import ChristmasLights from "@/components/ChristmasLights";
+import PerformanceMonitor from "@/components/PerformanceMonitor";
 
 interface Player {
     nickname: string;
@@ -741,6 +742,7 @@ export default function Page() {
     return (
         <div className="relative grid grid-rows-4 grid-cols-2 overflow-hidden bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
             <ChristmasLights />
+            <PerformanceMonitor />
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <Snowfall snowflakeCount={90} />
             </div>

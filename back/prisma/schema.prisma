@@ -95,3 +95,20 @@ model Log {
   @@index([timestamp])
   @@map("log")
 }
+
+model PerformanceLog {
+  id             String   @id @default(cuid())
+  userAgent      String?  @db.Text
+  fps            Int
+  avgFrameTime   Float
+  longTasks      Int
+  memoryUsage    Float?
+  url            String   @db.VarChar(500)
+  userNickname   String?  @db.VarChar(255)
+  deviceType     String?  @db.VarChar(50)
+  timestamp      DateTime @default(now())
+
+  @@index([fps])
+  @@index([timestamp])
+  @@map("performancelog")
+}

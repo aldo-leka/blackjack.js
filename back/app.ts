@@ -3,6 +3,7 @@ import itemRoutes from './routes/itemRoutes';
 import userRoutes from './routes/userRoutes';
 import cronRoutes from './routes/cronRoutes';
 import gameRoutes from './routes/gameRoutes';
+import performanceRoutes from './routes/performanceRoutes';
 import { errorHandler } from './middlewares/errorHandler';
 import cors from "cors";
 import config from './config/config';
@@ -53,6 +54,7 @@ app.use('/api/items', itemRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/cron', cronRoutes);
 app.use('/api', gameRoutes);
+app.use('/api', performanceRoutes);
 
 // Global error handler (should be after routes)
 app.use(errorHandler);
