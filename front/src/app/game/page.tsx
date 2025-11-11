@@ -740,7 +740,7 @@ export default function Page() {
 
     return (
         <div className="relative grid grid-rows-4 grid-cols-2 overflow-hidden bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
-            <ChristmasLights />
+            {/* <ChristmasLights /> */}
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <Snowfall snowflakeCount={90} />
             </div>
