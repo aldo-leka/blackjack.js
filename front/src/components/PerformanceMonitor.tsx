@@ -10,7 +10,7 @@ interface PerformanceStats {
     memoryUsage?: number;
 }
 
-const FPS_THRESHOLD = 30; // Log when FPS drops below this
+const FPS_THRESHOLD = 55; // Log when FPS drops below this (targeting 60fps)
 const LOG_COOLDOWN_MS = 10000; // Only log once every 10 seconds
 
 export default function PerformanceMonitor() {
