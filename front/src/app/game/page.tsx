@@ -740,7 +740,7 @@ export default function Page() {
 
     return (
         <div className="relative grid grid-rows-4 grid-cols-2 overflow-hidden bg-[url(/images/table.png)] bg-cover bg-center min-h-screen select-none">
-            {/* <ChristmasLights /> */}
+            <ChristmasLights />
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <Snowfall snowflakeCount={90} />
             </div>
@@ -1387,7 +1387,7 @@ export default function Page() {
     function getDealerComponent() {
         return <div className="flex flex-col items-center">
             <div className="flex w-full justify-center">
-                <div className="w-1/5 flex justify-center">
+                <div className="w-1/5 flex justify-center mt-4">
                     <motion.button
                         onClick={toggleMute}
                         className="text-[#DAA520] cursor-pointer flex flex-col items-center justify-center gap-1 bg-black/10 w-20 h-20 rounded-full overflow-hidden backdrop-blur-sm"
@@ -1550,7 +1550,7 @@ export default function Page() {
                     </AnimatePresence>
                 </div>
 
-                <div className="w-1/5 flex justify-center">
+                <div className="w-1/5 flex justify-center mt-4">
                     <motion.button
                         onClick={() => setShowQuitModal(true)}
                         className="text-[#DAA520] cursor-pointer flex flex-col items-center justify-center gap-1 bg-black/10 w-20 h-20 rounded-full overflow-hidden backdrop-blur-sm"
