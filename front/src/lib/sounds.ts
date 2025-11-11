@@ -47,14 +47,28 @@ class SoundManager {
 
     const sound = this.sounds.get(effect);
     if (sound) {
-      // Clone the audio to allow overlapping sounds
-      const clone = sound.cloneNode() as HTMLAudioElement;
-      if (volume !== undefined) {
-        clone.volume = Math.max(0, Math.min(1, volume));
+      try {
+        // Reset the audio to beginning if it's already playing
+        sound.currentTime = 0;
+        
+        const originalVolume = sound.volume;
+        if (volume !== undefined) {
+          sound.volume = Math.max(0, Math.min(1, volume));
+        }
+
+        sound.play().catch(err => {
+          console.warn(`Failed to play sound ${effect}:`, err);
+        });
+
+        // Restore original volume after playing (for next use)
+        if (volume !== undefined) {
+          setTimeout(() => {
+            sound.volume = originalVolume;
+          }, 100);
+        }
+      } catch (err) {
+        console.warn(`Error playing sound ${effect}:`, err);
       }
-      clone.play().catch(err => {
-        console.warn(`Failed to play sound ${effect}:`, err);
-      });
     }
   }
 
