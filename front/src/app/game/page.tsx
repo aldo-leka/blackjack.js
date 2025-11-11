@@ -1409,7 +1409,7 @@ export default function Page() {
 
                 <div className="flex flex-col items-center min-h-[150px]">
                     <motion.div
-                        className="flex flex-col items-center justify-center size-48 -mt-24 bg-[#daa52080] rounded-full overflow-hidden backdrop-blur-sm"
+                        className="flex flex-col items-center justify-center size-48 -mt-24 bg-[#daa52080] rounded-full backdrop-blur-sm"
                         animate={phase === "dealers_turn" ? {
                             scale: [1, 1.03, 1],
                             boxShadow: [
