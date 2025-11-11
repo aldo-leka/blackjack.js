@@ -9,17 +9,31 @@ type SoundEffect =
 class SoundManager {
   private sounds: Map<SoundEffect, HTMLAudioElement> = new Map();
   private isMuted: boolean = false;
+  private isInitialized: boolean = false;
 
   constructor() {
+    // Only initialize in browser environment
+    if (typeof window !== 'undefined') {
+      this.initialize();
+    }
+  }
+
+  private initialize() {
+    if (this.isInitialized) return;
+
     this.loadSound('cardDeal', '/sounds/card-deal.wav');
     this.loadSound('cardFlip', '/sounds/card-flip.wav');
     this.loadSound('chipPlace', '/sounds/chip-place.wav');
     this.loadSound('win', '/sounds/win.mp3');
     this.loadSound('lose', '/sounds/lose.wav');
     this.loadSound('buttonClick', '/sounds/button-click.wav');
+
+    this.isInitialized = true;
   }
 
   private loadSound(name: SoundEffect, path: string) {
+    if (typeof window === 'undefined') return;
+
     const audio = new Audio(path);
     audio.preload = 'auto';
     audio.volume = 0.4;
@@ -27,6 +41,8 @@ class SoundManager {
   }
 
   play(effect: SoundEffect, volume?: number) {
+    if (typeof window === 'undefined') return;
+    if (!this.isInitialized) this.initialize();
     if (this.isMuted) return;
 
     const sound = this.sounds.get(effect);
