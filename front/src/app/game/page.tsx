@@ -11,6 +11,7 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import Snowfall from "react-snowfall";
 import radio from "@/lib/radio";
+import { soundManager, playSounds } from "@/lib/sounds";
 
 interface Player {
     nickname: string;
@@ -148,7 +149,7 @@ export default function Page() {
                     if (station) {
                         audio = new Audio(station.urlResolved);
                         audio.loop = false;
-                        audio.volume = 0.3; // Set to 30% volume
+                        audio.volume = 0.2;
                         audio.play().catch(err => {
                             console.log("Autoplay prevented by browser:", err);
                         });
@@ -175,6 +176,7 @@ export default function Page() {
         if (audioElement) {
             audioElement.muted = isMuted;
         }
+        soundManager.setMuted(isMuted);
     }, [isMuted, audioElement]);
 
     const toggleMute = () => {
@@ -358,6 +360,7 @@ export default function Page() {
 
         function dealPlayerCard(player: ApiPlayer, card: ApiCard) {
             console.log(`dealPlayerCard: for ${player.nickname}, card: ${JSON.stringify(card)}`);
+            playSounds.cardDeal();
 
             if (player.nickname === nickname) {
                 if (player.currentHand === 0) {
@@ -396,6 +399,7 @@ export default function Page() {
         }
 
         function dealDealerFacedownCard() {
+            playSounds.cardDeal();
             setDealerHand([{
                 rank: "facedown",
                 suit: "card",
@@ -406,6 +410,7 @@ export default function Page() {
         }
 
         function dealDealerCard(card: ApiCard, handValue: HandValue) {
+            playSounds.cardDeal();
             setDealerHand(prev => [
                 ...prev,
                 getCard(card)
@@ -504,6 +509,10 @@ export default function Page() {
             }, 100);
 
             setTimeout(() => {
+                playSounds.cardFlip();
+            }, 750);
+
+            setTimeout(() => {
                 setIsDealerRevealingCard(false);
             }, 1000);
         }
@@ -549,6 +558,19 @@ export default function Page() {
             setHandResult(me.handResult);
             setHand2Result(me.hand2Result);
             setTotalWinnings(me.winningsThisRound);
+
+            const hasWin = me.handResult?.result === 'win' || me.handResult?.result === 'blackjack' ||
+                me.hand2Result?.result === 'win' || me.hand2Result?.result === 'blackjack';
+            const hasLose = me.handResult?.result === 'lose' || me.hand2Result?.result === 'lose';
+
+            if (hasWin && !hasLose) {
+                playSounds.win();
+            } else if (hasLose && !hasWin) {
+                playSounds.lose();
+            } else if (hasWin && hasLose) {
+                soundManager.play('win', 0.3);
+            }
+
             setTimeout(() => {
                 setHandResult(undefined);
                 setHand2Result(undefined);
@@ -673,6 +695,7 @@ export default function Page() {
 
     function addBet(index: number) {
         if (CHIPS[index] <= cash) {
+            playSounds.chipPlace();
             setTotalBet(prev => (prev ?? 0) + CHIPS[index]);
             socket.emit("change bet", index, "add");
         }
@@ -680,6 +703,7 @@ export default function Page() {
 
     function removeBet(index: number) {
         if (totalBet && CHIPS[index] <= totalBet) {
+            playSounds.chipPlace();
             setTotalBet(prev => prev! - CHIPS[index]);
             socket.emit("change bet", index, "remove");
         }
@@ -1045,61 +1069,61 @@ export default function Page() {
                                         </motion.div>
                                     ) : (
                                         <>
-                                    {betChips[0] > 0 && (
-                                        <motion.div
-                                            key="white-chip"
-                                            initial={{ scale: 0, y: -50, opacity: 0 }}
-                                            animate={{ scale: 1, y: 0, opacity: 1 }}
-                                            exit={{ scale: 0, opacity: 0 }}
-                                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                                        >
-                                            <Chip color="white" amount={betChips[0]} size={30} />
-                                        </motion.div>
-                                    )}
-                                    {betChips[1] > 0 && (
-                                        <motion.div
-                                            key="red-chip"
-                                            initial={{ scale: 0, y: -50, opacity: 0 }}
-                                            animate={{ scale: 1, y: 0, opacity: 1 }}
-                                            exit={{ scale: 0, opacity: 0 }}
-                                            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.05 }}
-                                        >
-                                            <Chip color="red" amount={betChips[1]} size={30} />
-                                        </motion.div>
-                                    )}
-                                    {betChips[2] > 0 && (
-                                        <motion.div
-                                            key="green-chip"
-                                            initial={{ scale: 0, y: -50, opacity: 0 }}
-                                            animate={{ scale: 1, y: 0, opacity: 1 }}
-                                            exit={{ scale: 0, opacity: 0 }}
-                                            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
-                                        >
-                                            <Chip color="green" amount={betChips[2]} size={30} />
-                                        </motion.div>
-                                    )}
-                                    {betChips[3] > 0 && (
-                                        <motion.div
-                                            key="black-chip"
-                                            initial={{ scale: 0, y: -50, opacity: 0 }}
-                                            animate={{ scale: 1, y: 0, opacity: 1 }}
-                                            exit={{ scale: 0, opacity: 0 }}
-                                            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.15 }}
-                                        >
-                                            <Chip color="black" amount={betChips[3]} size={30} />
-                                        </motion.div>
-                                    )}
-                                    {betChips[4] > 0 && (
-                                        <motion.div
-                                            key="blue-chip"
-                                            initial={{ scale: 0, y: -50, opacity: 0 }}
-                                            animate={{ scale: 1, y: 0, opacity: 1 }}
-                                            exit={{ scale: 0, opacity: 0 }}
-                                            transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.2 }}
-                                        >
-                                            <Chip color="blue" amount={betChips[4]} size={30} />
-                                        </motion.div>
-                                    )}
+                                            {betChips[0] > 0 && (
+                                                <motion.div
+                                                    key="white-chip"
+                                                    initial={{ scale: 0, y: -50, opacity: 0 }}
+                                                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                                                    exit={{ scale: 0, opacity: 0 }}
+                                                    transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                                                >
+                                                    <Chip color="white" amount={betChips[0]} size={30} />
+                                                </motion.div>
+                                            )}
+                                            {betChips[1] > 0 && (
+                                                <motion.div
+                                                    key="red-chip"
+                                                    initial={{ scale: 0, y: -50, opacity: 0 }}
+                                                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                                                    exit={{ scale: 0, opacity: 0 }}
+                                                    transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.05 }}
+                                                >
+                                                    <Chip color="red" amount={betChips[1]} size={30} />
+                                                </motion.div>
+                                            )}
+                                            {betChips[2] > 0 && (
+                                                <motion.div
+                                                    key="green-chip"
+                                                    initial={{ scale: 0, y: -50, opacity: 0 }}
+                                                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                                                    exit={{ scale: 0, opacity: 0 }}
+                                                    transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+                                                >
+                                                    <Chip color="green" amount={betChips[2]} size={30} />
+                                                </motion.div>
+                                            )}
+                                            {betChips[3] > 0 && (
+                                                <motion.div
+                                                    key="black-chip"
+                                                    initial={{ scale: 0, y: -50, opacity: 0 }}
+                                                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                                                    exit={{ scale: 0, opacity: 0 }}
+                                                    transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.15 }}
+                                                >
+                                                    <Chip color="black" amount={betChips[3]} size={30} />
+                                                </motion.div>
+                                            )}
+                                            {betChips[4] > 0 && (
+                                                <motion.div
+                                                    key="blue-chip"
+                                                    initial={{ scale: 0, y: -50, opacity: 0 }}
+                                                    animate={{ scale: 1, y: 0, opacity: 1 }}
+                                                    exit={{ scale: 0, opacity: 0 }}
+                                                    transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.2 }}
+                                                >
+                                                    <Chip color="blue" amount={betChips[4]} size={30} />
+                                                </motion.div>
+                                            )}
                                         </>
                                     )}
                                 </AnimatePresence>
@@ -1126,6 +1150,7 @@ export default function Page() {
                                 <motion.button
                                     onClick={() => {
                                         if (canHit) {
+                                            playSounds.buttonClick();
                                             socket.emit("hit");
                                         }
                                     }}
@@ -1140,6 +1165,7 @@ export default function Page() {
                                 <motion.button
                                     onClick={() => {
                                         if (canStand) {
+                                            playSounds.buttonClick();
                                             if (currentHand === 0) {
                                                 setStand(true);
                                             }
@@ -1160,6 +1186,7 @@ export default function Page() {
                                 <motion.button
                                     onClick={() => {
                                         if (canSplit) {
+                                            playSounds.buttonClick();
                                             socket.emit("split");
                                         }
                                     }}
@@ -1174,6 +1201,7 @@ export default function Page() {
                                 <motion.button
                                     onClick={() => {
                                         if (canDouble) {
+                                            playSounds.buttonClick();
                                             socket.emit("double");
                                         }
                                     }}
@@ -1191,6 +1219,7 @@ export default function Page() {
                                 <motion.button
                                     onClick={() => {
                                         if (totalBet && totalBet > 0 && !check) {
+                                            playSounds.buttonClick();
                                             setCheck(true);
                                             socket.emit("check");
                                         }
@@ -1206,6 +1235,7 @@ export default function Page() {
                                 <motion.button
                                     onClick={() => {
                                         if (totalBet && totalBet > 0 && !check) {
+                                            playSounds.buttonClick();
                                             setTotalBet(0);
                                             socket.emit("remove bet");
                                         }
@@ -1222,6 +1252,7 @@ export default function Page() {
                                     <motion.button
                                         onClick={() => {
                                             if (worth && betBefore && worth >= betBefore && !check) {
+                                                playSounds.chipPlace();
                                                 setTotalBet(betBefore);
                                                 socket.emit("repeat bet");
                                             }
@@ -1239,6 +1270,7 @@ export default function Page() {
                                     <motion.button
                                         onClick={() => {
                                             if (worth && betBefore && worth >= betBefore * 2 && !check) {
+                                                playSounds.chipPlace();
                                                 setTotalBet(betBefore * 2);
                                                 socket.emit("double bet");
                                             }
