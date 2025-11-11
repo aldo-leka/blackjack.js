@@ -134,10 +134,11 @@ export default function Page() {
     }, []);
 
     useEffect(() => {
-        let audio: HTMLAudioElement | null = null;
-
         async function setupRadio() {
             try {
+                const audio = document.getElementById('christmas-radio') as HTMLAudioElement;
+                if (!audio) return;
+
                 const stations = await radio.searchStations({
                     tag: "christmas",
                     limit: 10,
@@ -148,7 +149,7 @@ export default function Page() {
                 if (stations.length > 0) {
                     const station = stations.find(s => s.urlResolved);
                     if (station) {
-                        audio = new Audio(station.urlResolved);
+                        audio.src = station.urlResolved;
                         audio.loop = false;
                         audio.volume = 0.2;
                         audio.play().catch(err => {
@@ -166,6 +167,7 @@ export default function Page() {
         setupRadio();
 
         return () => {
+            const audio = document.getElementById('christmas-radio') as HTMLAudioElement;
             if (audio) {
                 audio.pause();
                 audio.src = "";

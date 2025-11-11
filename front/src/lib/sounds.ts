@@ -21,23 +21,24 @@ class SoundManager {
   private initialize() {
     if (this.isInitialized) return;
 
-    this.loadSound('cardDeal', '/sounds/card-deal.wav');
-    this.loadSound('cardFlip', '/sounds/card-flip.wav');
-    this.loadSound('chipPlace', '/sounds/chip-place.wav');
-    this.loadSound('win', '/sounds/win.mp3');
-    this.loadSound('lose', '/sounds/lose.wav');
-    this.loadSound('buttonClick', '/sounds/button-click.wav');
+    this.loadSound('cardDeal', 'sound-card-deal');
+    this.loadSound('cardFlip', 'sound-card-flip');
+    this.loadSound('chipPlace', 'sound-chip-place');
+    this.loadSound('win', 'sound-win');
+    this.loadSound('lose', 'sound-lose');
+    this.loadSound('buttonClick', 'sound-button-click');
 
     this.isInitialized = true;
   }
 
-  private loadSound(name: SoundEffect, path: string) {
+  private loadSound(name: SoundEffect, elementId: string) {
     if (typeof window === 'undefined') return;
 
-    const audio = new Audio(path);
-    audio.preload = 'auto';
-    audio.volume = 0.4;
-    this.sounds.set(name, audio);
+    const audio = document.getElementById(elementId) as HTMLAudioElement;
+    if (audio) {
+      audio.volume = 0.4;
+      this.sounds.set(name, audio);
+    }
   }
 
   play(effect: SoundEffect, volume?: number) {

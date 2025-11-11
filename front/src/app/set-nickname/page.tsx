@@ -37,7 +37,7 @@ function Form() {
             socket.off("nickname unavailable", handleNicknameUnavailable);
             socket.off("nickname accepted", handleNicknameAccepted);
         }
-    }, [router, searchParams, nickname]);
+    }, [router, searchParams]);
 
     return (
         <div className="flex flex-col items-center gap-4 bg-[url(/images/table.png)] bg-cover bg-center min-h-screen">

@@ -31,6 +31,13 @@ export default function RootLayout({
         <NicknameProvider>
           {children}
         </NicknameProvider>
+        <audio id="sound-card-deal" preload="auto" src="/sounds/card-deal.wav" />
+        <audio id="sound-card-flip" preload="auto" src="/sounds/card-flip.wav" />
+        <audio id="sound-chip-place" preload="auto" src="/sounds/chip-place.wav" />
+        <audio id="sound-win" preload="auto" src="/sounds/win.mp3" />
+        <audio id="sound-lose" preload="auto" src="/sounds/lose.wav" />
+        <audio id="sound-button-click" preload="auto" src="/sounds/button-click.wav" />
+        <audio id="christmas-radio" preload="none" />
       </body>
     </html>
   );
