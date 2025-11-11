@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
-import { useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 const COLORS = [
     "#FF0000", // red
@@ -28,12 +28,18 @@ function seededRandom(seed: number) {
 }
 
 export default function ChristmasLights() {
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
     // Generate bulbs with positions along a curve using useMemo to ensure consistency
     const bulbs: LightBulb[] = useMemo(() => {
         return Array.from({ length: 30 }, (_, i) => {
             const xPercent = (i / 29) * 100;
-            // Create a sagging curve using sine wave
-            const wireY = 20 + Math.sin((i / 29) * Math.PI) * 35;
+            // Create a sagging curve - high on sides, low in middle (inverted sine wave)
+            const wireY = 5 - Math.sin((i / 29) * Math.PI) * 15;
 
             return {
                 id: i,
@@ -45,6 +51,10 @@ export default function ChristmasLights() {
             };
         });
     }, []);
+
+    if (!isMounted) {
+        return null;
+    }
 
     // Create smooth curve path for the wire using viewBox coordinates
     const pathData = bulbs.reduce((path, bulb, i) => {
@@ -69,16 +79,16 @@ export default function ChristmasLights() {
                 {/* Main wire */}
                 <path
                     d={pathData}
-                    stroke="#1a1a1a"
-                    strokeWidth="0.3"
+                    stroke="#2a2a2a"
+                    strokeWidth="0.4"
                     fill="none"
                     vectorEffect="non-scaling-stroke"
-                    style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.5))" }}
+                    style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.8))" }}
                 />
 
                 {/* String connections from wire to bulbs */}
                 {bulbs.map((bulb) => {
-                    const stringLength = 8 + (bulb.id * 5) % 12;
+                    const stringLength = 8 + (bulb.id * 4) % 10;
                     return (
                         <line
                             key={`string-${bulb.id}`}
@@ -86,10 +96,10 @@ export default function ChristmasLights() {
                             y1={bulb.wireY}
                             x2={bulb.xPercent}
                             y2={bulb.wireY + stringLength}
-                            stroke="#1a1a1a"
-                            strokeWidth="0.15"
+                            stroke="#2a2a2a"
+                            strokeWidth="0.2"
                             vectorEffect="non-scaling-stroke"
-                            opacity="0.7"
+                            opacity="0.8"
                         />
                     );
                 })}
@@ -98,7 +108,7 @@ export default function ChristmasLights() {
             {/* Light Bulbs */}
             <div className="relative w-full h-full">
                 {bulbs.map((bulb) => {
-                    const stringLength = 8 + (bulb.id * 5) % 12;
+                    const stringLength = 8 + (bulb.id * 4) % 10;
                     return (
                         <motion.div
                             key={bulb.id}

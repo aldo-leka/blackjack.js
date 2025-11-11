@@ -1007,7 +1007,7 @@ export default function Page() {
                         <AnimatePresence>
                             {((phase === "bet" && totalTime && timeLeft && !check) || (phase === "players_turn" && isMyTurn && totalTime && timeLeft)) && (
                                 <motion.svg
-                                    className="absolute inset-0 -rotate-90"
+                                    className="absolute inset-0 -rotate-90 z-10"
                                     viewBox="0 0 144 144"
                                     initial={{ opacity: 0, scale: 0.8 }}
                                     animate={{ opacity: 1, scale: 1 }}
@@ -1030,7 +1030,7 @@ export default function Page() {
                         </AnimatePresence>
 
                         <motion.div
-                            className="grid grid-rows-3 bg-[#daa52080] rounded-full size-42 border-4 border-transparent"
+                            className="grid grid-rows-3 bg-[#daa52080] rounded-full size-42 border-4 border-transparent overflow-hidden backdrop-blur-sm"
                             animate={phase === "bet" ? {
                                 scale: [1, 1.05, 1],
                                 borderColor: ["transparent", "#DAA520", "transparent"]
@@ -1388,7 +1388,10 @@ export default function Page() {
                 <div className="w-1/5 flex justify-center">
                     <motion.button
                         onClick={toggleMute}
-                        className="text-[#DAA520] cursor-pointer flex flex-col items-center gap-1"
+                        className="text-[#DAA520] cursor-pointer flex flex-col items-center justify-center gap-1 bg-black/10 w-20 h-20 rounded-full overflow-hidden backdrop-blur-sm"
+                        style={{
+                            boxShadow: "0 0 8px rgba(218, 165, 32, 0.2), 0 0 15px rgba(218, 165, 32, 0.05)"
+                        }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         transition={{ type: "spring", stiffness: 400, damping: 17 }}
@@ -1406,7 +1409,7 @@ export default function Page() {
 
                 <div className="flex flex-col items-center min-h-[150px]">
                     <motion.div
-                        className="flex flex-col items-center justify-center size-48 -mt-24 bg-[#daa52080] rounded-full"
+                        className="flex flex-col items-center justify-center size-48 -mt-24 bg-[#daa52080] rounded-full overflow-hidden backdrop-blur-sm"
                         animate={phase === "dealers_turn" ? {
                             scale: [1, 1.03, 1],
                             boxShadow: [
@@ -1548,7 +1551,10 @@ export default function Page() {
                 <div className="w-1/5 flex justify-center">
                     <motion.button
                         onClick={() => setShowQuitModal(true)}
-                        className="text-[#DAA520] cursor-pointer flex flex-col items-center gap-1"
+                        className="text-[#DAA520] cursor-pointer flex flex-col items-center justify-center gap-1 bg-black/10 w-20 h-20 rounded-full overflow-hidden backdrop-blur-sm"
+                        style={{
+                            boxShadow: "0 0 8px rgba(218, 165, 32, 0.2), 0 0 15px rgba(218, 165, 32, 0.05)"
+                        }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         transition={{ type: "spring", stiffness: 400, damping: 17 }}
@@ -1855,7 +1861,7 @@ export default function Page() {
                         <AnimatePresence>
                             {(phase === "bet" && totalTime && timeLeft && !otherPlayer.check) && (
                                 <motion.svg
-                                    className="absolute inset-0 -rotate-90"
+                                    className="absolute inset-0 -rotate-90 z-10"
                                     viewBox="0 0 144 144"
                                     initial={{ opacity: 0, scale: 0.8 }}
                                     animate={{ opacity: 1, scale: 1 }}
@@ -1876,7 +1882,7 @@ export default function Page() {
                                 </motion.svg>
                             )}
                         </AnimatePresence>
-                        <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-42">
+                        <div className="grid grid-rows-3 bg-[#daa52039] rounded-full size-42 overflow-hidden backdrop-blur-sm">
                             <AnimatePresence mode="wait">
                                 <motion.div
                                     key={otherPlayer.totalBet}
