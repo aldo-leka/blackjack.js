@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "motion/react";
 import { useState, useEffect, useMemo } from "react";
 
 const COLORS = [
@@ -68,93 +67,95 @@ export default function ChristmasLights() {
     }, "");
 
     return (
-        <div className="fixed top-0 left-0 right-0 z-0 pointer-events-none h-32">
-            {/* SVG for wire and strings */}
-            <svg
-                className="absolute top-0 left-0 w-full h-full"
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                style={{ overflow: "visible" }}
-            >
-                {/* Main wire */}
-                <path
-                    d={pathData}
-                    stroke="#2a2a2a"
-                    strokeWidth="0.4"
-                    fill="none"
-                    vectorEffect="non-scaling-stroke"
-                    style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.8))" }}
-                />
+        <>
+            <style jsx>{`
+                @keyframes twinkle {
+                    0%, 100% {
+                        opacity: 0.6;
+                        transform: translateX(-50%) scale(1);
+                    }
+                    50% {
+                        opacity: 1;
+                        transform: translateX(-50%) scale(1.1);
+                    }
+                }
+            `}</style>
+            <div className="fixed top-0 left-0 right-0 z-0 pointer-events-none h-32">
+                {/* SVG for wire and strings */}
+                <svg
+                    className="absolute top-0 left-0 w-full h-full"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                    style={{ overflow: "visible" }}
+                >
+                    {/* Main wire */}
+                    <path
+                        d={pathData}
+                        stroke="#2a2a2a"
+                        strokeWidth="0.4"
+                        fill="none"
+                        vectorEffect="non-scaling-stroke"
+                        style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.8))" }}
+                    />
 
-                {/* String connections from wire to bulbs */}
-                {bulbs.map((bulb) => {
-                    const stringLength = 8 + (bulb.id * 4) % 10;
-                    return (
-                        <line
-                            key={`string-${bulb.id}`}
-                            x1={bulb.xPercent}
-                            y1={bulb.wireY}
-                            x2={bulb.xPercent}
-                            y2={bulb.wireY + stringLength}
-                            stroke="#2a2a2a"
-                            strokeWidth="0.2"
-                            vectorEffect="non-scaling-stroke"
-                            opacity="0.8"
-                        />
-                    );
-                })}
-            </svg>
+                    {/* String connections from wire to bulbs */}
+                    {bulbs.map((bulb) => {
+                        const stringLength = 8 + (bulb.id * 4) % 10;
+                        return (
+                            <line
+                                key={`string-${bulb.id}`}
+                                x1={bulb.xPercent}
+                                y1={bulb.wireY}
+                                x2={bulb.xPercent}
+                                y2={bulb.wireY + stringLength}
+                                stroke="#2a2a2a"
+                                strokeWidth="0.2"
+                                vectorEffect="non-scaling-stroke"
+                                opacity="0.8"
+                            />
+                        );
+                    })}
+                </svg>
 
-            {/* Light Bulbs */}
-            <div className="relative w-full h-full">
-                {bulbs.map((bulb) => {
-                    const stringLength = 8 + (bulb.id * 4) % 10;
-                    return (
-                        <motion.div
-                            key={bulb.id}
-                            className="absolute"
-                            style={{
-                                left: `${bulb.xPercent}%`,
-                                top: `${bulb.wireY + stringLength}%`,
-                                transform: "translateX(-50%)",
-                            }}
-                            animate={{
-                                opacity: [0.6, 1, 0.6],
-                                filter: [
-                                    `drop-shadow(0 0 4px ${bulb.color}) brightness(0.8)`,
-                                    `drop-shadow(0 0 10px ${bulb.color}) brightness(1.3)`,
-                                    `drop-shadow(0 0 4px ${bulb.color}) brightness(0.8)`,
-                                ],
-                            }}
-                            transition={{
-                                duration: bulb.duration,
-                                repeat: Infinity,
-                                delay: bulb.delay,
-                                ease: "easeInOut",
-                            }}
-                        >
-                            {/* Bulb */}
-                            <div className="flex flex-col items-center">
-                                {/* Socket */}
-                                <div
-                                    className="w-2 h-2.5 bg-gray-800 rounded-t"
-                                    style={{
-                                        boxShadow: "inset 0 0 2px rgba(0,0,0,0.8)",
-                                    }}
-                                />
-                                {/* Glass bulb */}
-                                <div
-                                    className="w-4 h-5 rounded-full"
-                                    style={{
-                                        backgroundColor: bulb.color,
-                                        boxShadow: `0 0 8px ${bulb.color}, inset -1px -2px 3px rgba(0,0,0,0.4), inset 1px 1px 2px rgba(255,255,255,0.3)`,
-                                    }}
-                                />
+                {/* Light Bulbs */}
+                <div className="relative w-full h-full">
+                    {bulbs.map((bulb) => {
+                        const stringLength = 8 + (bulb.id * 4) % 10;
+                        return (
+                            <div
+                                key={bulb.id}
+                                className="absolute"
+                                style={{
+                                    left: `${bulb.xPercent}%`,
+                                    top: `${bulb.wireY + stringLength}%`,
+                                    transform: "translateX(-50%)",
+                                    willChange: "opacity, transform",
+                                    animation: `twinkle ${bulb.duration}s ease-in-out ${bulb.delay}s infinite`,
+                                }}
+                            >
+                                {/* Bulb */}
+                                <div className="flex flex-col items-center">
+                                    {/* Socket */}
+                                    <div
+                                        className="w-2 h-2.5 bg-gray-800 rounded-t"
+                                        style={{
+                                            boxShadow: "inset 0 0 2px rgba(0,0,0,0.8)",
+                                        }}
+                                    />
+                                    {/* Glass bulb */}
+                                    <div
+                                        className="w-4 h-5 rounded-full"
+                                        style={{
+                                            backgroundColor: bulb.color,
+                                            boxShadow: `0 0 8px ${bulb.color}, inset -1px -2px 3px rgba(0,0,0,0.4), inset 1px 1px 2px rgba(255,255,255,0.3)`,
+                                        }}
+                                    />
+                                </div>
                             </div>
-                        </motion.div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
-        </div>
+        </>
     );
 }
