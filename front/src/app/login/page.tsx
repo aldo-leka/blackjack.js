@@ -6,9 +6,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Snowfall from "react-snowfall";
 import { motion } from "motion/react";
+import Chat from "@/components/Chat";
+import { useNickname } from "@/contexts/NicknameContext";
 
 export default function Page() {
     const router = useRouter();
+    const { nickname } = useNickname();
     const [isSignedIn, setIsSignedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -99,6 +102,9 @@ export default function Page() {
                     height={25}
                 />
             </motion.div>
+            <div className="relative z-10 w-full px-4 mt-8 mb-8">
+                <Chat disabled={!nickname} />
+            </div>
         </div>
     )
 }

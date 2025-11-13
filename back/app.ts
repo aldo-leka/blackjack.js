@@ -31,10 +31,14 @@ import {
     PLAYER_TIMEOUT,
     DEALER_CHECK_BLACKJACK_TIME,
     HandResult,
-    LONGER_WAIT
+    LONGER_WAIT,
+    CHAT_RATE_LIMIT,
+    CHAT_RATE_WINDOW,
+    CHAT_MAX_LENGTH
 } from './util';
 import prisma from './db';
 import { Room } from './models/room';
+import { profanity } from '@2toad/profanity';
 
 const app = express();
 
@@ -71,6 +75,9 @@ const io = new Server(server, {
 let users = new Map<string, UserData>();
 let rooms = new Map<string, Room>();
 let currentRoomId = 0;
+
+// Rate limiting for chat: Map<nickname, timestamp[]>
+const chatRateLimitMap = new Map<string, number[]>();
 
 io.on('connection', async (socket) => {
     socket.on("register nickname", async (data) => {
@@ -181,6 +188,9 @@ io.on('connection', async (socket) => {
             lastRefillAt = tempUser.lastRefillAt;
         }
 
+        const isNewUser = !existing;
+        const shouldAnnounce = isNewUser || !existing?.hasBeenAnnounced;
+
         if (existing) {
             existing.socketId = socket.id;
             existing.countryCode = countryCode;
@@ -199,6 +209,7 @@ io.on('connection', async (socket) => {
                 cash,
                 lastRefillAt,
                 disconnected: false,
+                hasBeenAnnounced: false,
             });
         }
 
@@ -207,6 +218,15 @@ io.on('connection', async (socket) => {
             nickname: nickname,
             isAuthenticated: isAuthenticated
         });
+
+        // Broadcast system message that player joined (only once per session)
+        if (shouldAnnounce) {
+            await broadcastSystemMessage(`${nickname} joined the game.`, nickname, countryCode);
+            const user = users.get(nickname);
+            if (user) {
+                user.hasBeenAnnounced = true;
+            }
+        }
     });
 
     socket.on("disconnect", async () => {
@@ -255,6 +275,9 @@ io.on('connection', async (socket) => {
             }
 
             users.delete(nickname);
+
+            // Broadcast system message that player left
+            await broadcastSystemMessage(`${nickname} left the game.`, nickname, countryCode);
 
             logInfo(`'${nickname}' from ${countryCode} (ip: ${socket.handshake.address}) removed after timeout`);
         }, PLAYER_TIMEOUT * 1000);
@@ -848,7 +871,137 @@ io.on('connection', async (socket) => {
         await wait(SHORT_WAIT);
         await nextPlayer(room);
     });
+
+    socket.on("send chat message", async (message: string) => {
+        const nickname = socket.data.nickname;
+        if (!nickname) {
+            logWarning("send chat message: no socket nickname");
+            return;
+        }
+
+        const user = users.get(nickname);
+        if (!user) {
+            logWarning(`send chat message: no user for nickname '${nickname}'`);
+            return;
+        }
+
+        // Validate message length
+        if (!message || message.trim().length === 0) {
+            logWarning(`send chat message: empty message from '${nickname}'`);
+            return;
+        }
+
+        if (message.length > CHAT_MAX_LENGTH) {
+            socket.emit("chat error", `Message too long. Max ${CHAT_MAX_LENGTH} characters.`);
+            logWarning(`send chat message: message too long from '${nickname}' (${message.length} chars)`);
+            return;
+        }
+
+        // Rate limiting
+        const now = Date.now();
+        const userTimestamps = chatRateLimitMap.get(nickname) || [];
+
+        // Remove timestamps older than the time window
+        const recentTimestamps = userTimestamps.filter(
+            timestamp => now - timestamp < CHAT_RATE_WINDOW * 1000
+        );
+
+        if (recentTimestamps.length >= CHAT_RATE_LIMIT) {
+            socket.emit("chat error", "You're sending messages too quickly. Please slow down.");
+            logWarning(`send chat message: rate limit exceeded for '${nickname}'`);
+            return;
+        }
+
+        // Add current timestamp
+        recentTimestamps.push(now);
+        chatRateLimitMap.set(nickname, recentTimestamps);
+
+        // Store raw message in DB
+        try {
+            const chatMessage = await prisma.chat.create({
+                data: {
+                    message: message.trim(),
+                    nickname: user.nickname,
+                    countryCode: user.countryCode,
+                    type: 'user'
+                }
+            });
+
+            // Apply profanity filter for broadcasting
+            const filteredMessage = profanity.censor(message.trim());
+
+            // Broadcast to all clients with filtered message
+            io.emit("chat message", {
+                id: chatMessage.id,
+                message: filteredMessage,
+                nickname: user.nickname,
+                countryCode: user.countryCode,
+                type: 'user',
+                timestamp: chatMessage.timestamp
+            });
+
+            logInfo(`chat: ${user.nickname}: ${message.trim()}`);
+        } catch (error) {
+            logError("send chat message: error saving message", error);
+            socket.emit("chat error", "Failed to send message. Please try again.");
+        }
+    });
+
+    socket.on("load chat history", async (data: { limit?: number; offset?: number }) => {
+        const limit = data.limit || 100;
+        const offset = data.offset || 0;
+
+        try {
+            const messages = await prisma.chat.findMany({
+                orderBy: { timestamp: 'desc' },
+                take: limit,
+                skip: offset
+            });
+
+            // Apply profanity filter to all messages
+            const filteredMessages = messages.map(msg => ({
+                id: msg.id,
+                message: profanity.censor(msg.message),
+                nickname: msg.nickname,
+                countryCode: msg.countryCode,
+                type: msg.type,
+                timestamp: msg.timestamp
+            })); // Already ordered desc (newest first)
+
+            socket.emit("chat history", filteredMessages);
+        } catch (error) {
+            logError("load chat history: error loading messages", error);
+            socket.emit("chat error", "Failed to load chat history.");
+        }
+    });
 });
+
+/**
+ * Create and broadcast a system chat message
+ */
+async function broadcastSystemMessage(message: string, nickname: string, countryCode: string) {
+    try {
+        const chatMessage = await prisma.chat.create({
+            data: {
+                message,
+                nickname,
+                countryCode,
+                type: 'system'
+            }
+        });
+
+        io.emit("chat message", {
+            id: chatMessage.id,
+            message: chatMessage.message,
+            nickname: chatMessage.nickname,
+            countryCode: chatMessage.countryCode,
+            type: 'system',
+            timestamp: chatMessage.timestamp
+        });
+    } catch (error) {
+        logError("broadcastSystemMessage: error creating system message", error);
+    }
+}
 
 /**
  * As seen in PokerStars VR:

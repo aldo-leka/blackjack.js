@@ -8,6 +8,8 @@ import Chip from "@/components/Chip";
 import { motion } from "motion/react";
 import Image from "next/image";
 import { convertToChips } from "@/lib/util";
+import Chat from "@/components/Chat";
+import { useNickname } from "@/contexts/NicknameContext";
 
 interface PricePackage {
     price: string;
@@ -30,6 +32,7 @@ const packages: PricePackage[] = [
 
 export default function Page() {
     const router = useRouter();
+    const { nickname } = useNickname();
     const [isSignedIn, setIsSignedIn] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -161,6 +164,9 @@ export default function Page() {
                         </motion.button>
                     );
                 })}
+            </div>
+            <div className="relative z-10 w-full px-4 mt-8 mb-8">
+                <Chat disabled={!nickname} />
             </div>
         </div>
     );

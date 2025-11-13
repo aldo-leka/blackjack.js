@@ -10,6 +10,9 @@ export const DEAL_TIME = 1.5;
 export const SHORT_WAIT = 1.5;
 export const LONGER_WAIT = 2.5;
 export const DEALER_CHECK_BLACKJACK_TIME = 3;
+export const CHAT_RATE_LIMIT = 5; // max messages
+export const CHAT_RATE_WINDOW = 10; // per 10 seconds
+export const CHAT_MAX_LENGTH = 500; // max characters per message
 export const CHIPS = [
   1, // WHITE
   5, // RED

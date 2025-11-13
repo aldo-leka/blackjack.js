@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
 import { motion } from "motion/react";
 import Leaderboard from "@/components/Leaderboard";
+import Chat from "@/components/Chat";
 
 export default function Page() {
   const router = useRouter();
@@ -124,6 +125,9 @@ export default function Page() {
         </motion.div>
       )}
       <Leaderboard />
+      <div className="relative z-10 w-full px-4 mt-8 mb-8">
+        <Chat disabled={!nickname} />
+      </div>
     </div>
   )
 }

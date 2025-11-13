@@ -112,3 +112,15 @@ model PerformanceLog {
   @@index([timestamp])
   @@map("performancelog")
 }
+
+model Chat {
+  id          String   @id @default(cuid())
+  message     String   @db.VarChar(500)
+  nickname    String   @db.VarChar(255)
+  countryCode String   @db.VarChar(10)
+  type        String   @db.VarChar(10) // 'user' or 'system'
+  timestamp   DateTime @default(now())
+
+  @@index([timestamp])
+  @@map("chat")
+}

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Loading from "@/components/Loading";
 import { authClient } from "@/lib/auth-client";
 import Image from "next/image";
+import Chat from "@/components/Chat";
 
 function Form() {
     const [nickname, setNickname] = useState("");
@@ -84,6 +85,9 @@ function Form() {
             {error && (
                 <p className="text-sm text-red-500 mt-2">{error}</p>
             )}
+            <div className="w-full px-4 mt-8 mb-8">
+                <Chat disabled={true} />
+            </div>
         </div>
     );
 }

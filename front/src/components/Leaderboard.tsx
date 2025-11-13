@@ -64,10 +64,10 @@ export default function Leaderboard() {
             transition={{ duration: 0.5 }}
         >
             <div className="rounded-lg p-4">
-                <h3 className="text-[#DAA520] text-xl font-bold italic text-center mb-4 uppercase">
+                <h3 className="font-semibold italic text-center uppercase">
                     Wall of Fame
                 </h3>
-                <div className="space-y-2">
+                <div>
                     {players.map((player, index) => (
                         <motion.div
                             key={`${player.nickname}-${index}`}

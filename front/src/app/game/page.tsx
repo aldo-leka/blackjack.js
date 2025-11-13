@@ -14,6 +14,7 @@ import radio from "@/lib/radio";
 import { soundManager, playSounds } from "@/lib/sounds";
 import ChristmasLights from "@/components/ChristmasLights";
 import PerformanceMonitor from "@/components/PerformanceMonitor";
+import Chat from "@/components/Chat";
 
 interface Player {
     nickname: string;
@@ -1383,6 +1384,11 @@ export default function Page() {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Chat component */}
+            <div className="relative z-10 col-span-2 px-4 pb-8">
+                <Chat />
+            </div>
         </div>
     );
 

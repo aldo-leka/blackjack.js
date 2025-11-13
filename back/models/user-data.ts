@@ -26,4 +26,5 @@ export interface UserData {
     hand2Result?: HandResult;
     disconnected: boolean;
     disconnectedTimer?: NodeJS.Timeout;
+    hasBeenAnnounced?: boolean; // Track if "joined" message has been broadcast for this session
 }

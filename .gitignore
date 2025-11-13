@@ -4,3 +4,5 @@ back/.env
 front/.env.local
 back/dist
 .VSCodeCounter/
+*.md
+*.txt
