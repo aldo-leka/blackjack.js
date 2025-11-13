@@ -2,7 +2,7 @@
 
 import Chip from "@/components/Chip";
 import { socket } from "@/lib/socket";
-import { Check, Currency, Hand, Music, Plus, Repeat, Split, X, Volume2, VolumeX } from "lucide-react";
+import { Check, Currency, Hand, Music, Plus, Repeat, Split, X, Volume2, VolumeX, Share2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
 import { useRouter } from "next/navigation";
@@ -112,6 +112,7 @@ export default function Page() {
     const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
     const [showQuitModal, setShowQuitModal] = useState(false);
     const [refillCountdown, setRefillCountdown] = useState<number>();
+    const [showCopiedNotification, setShowCopiedNotification] = useState(false);
 
     useEffect(() => {
         function onConnect() {
@@ -186,6 +187,20 @@ export default function Page() {
 
     const toggleMute = () => {
         setIsMuted(!isMuted);
+    };
+
+    const copyInviteLink = async () => {
+        try {
+            const url = window.location.href;
+            await navigator.clipboard.writeText(url);
+            playSounds.buttonClick();
+            setShowCopiedNotification(true);
+            setTimeout(() => {
+                setShowCopiedNotification(false);
+            }, 3000);
+        } catch (error) {
+            console.error("Failed to copy link:", error);
+        }
     };
 
     const calculateRemainingRefillTime = (lastRefillAt: string, cash: number): number | undefined => {
@@ -1309,6 +1324,28 @@ export default function Page() {
                         {getOtherPlayerComponent(1)}
                     </AnimatePresence>
                 </div>
+
+                {otherPlayers.length === 0 && (
+                    <motion.div
+                        className="col-span-2 flex justify-center items-center"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 20 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    >
+                        <motion.button
+                            onClick={copyInviteLink}
+                            className="flex items-center gap-2 px-6 py-3 bg-[#DAA520] rounded-md font-semibold cursor-pointer text-[#016F32]"
+                            whileHover={{ scale: 1.05, backgroundColor: "#c99a1f" }}
+                            whileTap={{ scale: 0.95 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                            title="Copy link to invite friends"
+                        >
+                            <Share2 size={20} />
+                            Invite Friends
+                        </motion.button>
+                    </motion.div>
+                )}
             </div>
 
             <div id="chat" className="relative z-10 col-span-2">
@@ -1325,6 +1362,21 @@ export default function Page() {
                         className="fixed bottom-0 left-0 right-0 bg-red-600 text-white text-center font-semibold z-50"
                     >
                         Disconnected. <button onClick={() => window.location.reload()} className="underline hover:text-gray-200">Refresh the page</button> to reconnect.
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {showCopiedNotification && (
+                    <motion.div
+                        initial={{ y: -100, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -100, opacity: 0 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        className="fixed top-4 left-1/2 -translate-x-1/2 bg-green-600 text-white px-6 py-3 rounded-md font-semibold z-50 flex items-center gap-2 shadow-lg"
+                    >
+                        <Share2 size={20} />
+                        Link copied! Share it with your friends
                     </motion.div>
                 )}
             </AnimatePresence>
