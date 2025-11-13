@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { motion } from "motion/react";
+import { Currency } from "lucide-react";
 
 interface LeaderboardPlayer {
     rank: number;
@@ -70,7 +71,7 @@ export default function Leaderboard() {
                     {players.map((player, index) => (
                         <motion.div
                             key={`${player.nickname}-${index}`}
-                            className="flex items-center justify-between bg-[#004020] bg-opacity-60 rounded px-3 py-2"
+                            className="flex items-center justify-between px-3 py-2"
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ duration: 0.3, delay: index * 0.1 }}
@@ -94,7 +95,7 @@ export default function Leaderboard() {
                                 </div>
 
                                 {/* Player info with dots */}
-                                <div className="flex items-center flex-1 min-w-0">
+                                <div className="flex items-end flex-1 min-w-0">
                                     <div className="flex items-baseline gap-1 flex-shrink-0">
                                         <span className="text-white font-semibold">
                                             {player.nickname}
@@ -103,13 +104,13 @@ export default function Leaderboard() {
                                             {player.countryCode}
                                         </span>
                                     </div>
-                                    <div className="flex-1 border-b border-dotted border-gray-500 mx-2 min-w-[20px]" />
+                                    <div className="flex-1 border-b border-dotted border-white mx-2 min-w-[20px] mb-1" />
                                 </div>
                             </div>
 
                             {/* Cash amount */}
-                            <div className="text-[#DAA520] font-bold flex-shrink-0">
-                                {player.cash}
+                            <div className="text-white font-bold flex-shrink-0 inline-flex items-center">
+                                <Currency size={16} className="mr-1" />{player.cash}
                             </div>
                         </motion.div>
                     ))}
