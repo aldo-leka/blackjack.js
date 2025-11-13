@@ -7,6 +7,7 @@ import { authClient } from "@/lib/auth-client";
 import { useEffect, useState } from "react";
 import { useNickname } from "@/contexts/NicknameContext";
 import { motion } from "motion/react";
+import Leaderboard from "@/components/Leaderboard";
 
 export default function Page() {
   const router = useRouter();
@@ -122,6 +123,7 @@ export default function Page() {
           />
         </motion.div>
       )}
+      <Leaderboard />
     </div>
   )
 }

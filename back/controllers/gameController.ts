@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { getRooms, getLoggingCard } from '../app';
 import { MAX_PLAYERS_PER_ROOM } from '../util';
 import prisma from '../db';
+import { logError } from '../log';
 
 export const getRoomsAscii = (req: Request, res: Response) => {
     try {
@@ -79,5 +80,63 @@ export const getLogs = async (req: Request, res: Response) => {
         });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch logs' });
+    }
+};
+
+export const getTopPlayers = async (req: Request, res: Response) => {
+    try {
+        const limit = parseInt(req.query.limit as string) || 5;
+
+        // Get top authenticated users
+        const authUsers = await prisma.user.findMany({
+            select: {
+                id: true,
+                nickname: true,
+                cash: true,
+                image: true,
+            },
+            orderBy: { cash: 'desc' },
+            take: limit * 2, // Get more to ensure we have enough after combining
+        });
+
+        // Get top anonymous users
+        const tempUsers = await prisma.tempUser.findMany({
+            select: {
+                nickname: true,
+                cash: true,
+                countryCode: true,
+            },
+            orderBy: { cash: 'desc' },
+            take: limit * 2,
+        });
+
+        // Combine and sort by cash
+        const combined = [
+            ...authUsers.map((u) => ({
+                nickname: u.nickname || 'Anonymous',
+                cash: u.cash,
+                countryCode: 'XX', // Authenticated users don't have stored country code
+                image: u.image || null,
+                isAuthenticated: true,
+            })),
+            ...tempUsers.map((u) => ({
+                nickname: u.nickname,
+                cash: u.cash,
+                countryCode: u.countryCode,
+                image: null,
+                isAuthenticated: false,
+            })),
+        ]
+        .sort((a, b) => b.cash - a.cash)
+        .slice(0, limit)
+        .map((player, idx) => ({
+            rank: idx + 1,
+            ...player,
+        }));
+
+        return res.json({ leaderboard: combined });
+    } catch (error) {
+        logError('Error fetching leaderboard:', error);
+        return res.status(500).json({ error: 'Internal server error' });
     }
 };
