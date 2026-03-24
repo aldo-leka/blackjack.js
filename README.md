@@ -1,181 +1,157 @@
-# Useful stuff
+# blackjack.js
 
-## CI / CD
-### Need to know
-Builds / deployments / dockerization crashed my server many times.
-Therefore I offloaded the work to GitHub Actions and used Container Registry (ghcr) for the Docker images.
+Christmas-themed online blackjack with a Next.js frontend and an Express + Socket.IO backend.
 
-I needed to enable API access on Coolify so that GitHub Actions
-could notify my Coolify environment for new deployments.
+Production:
+- Frontend: `https://blackjack.aldo.al`
+- Backend: `https://blackjackapi.aldo.al`
 
-Steps:
-1. In Coolify: Go to Keys & Tokens / API Tokens
-2. Create an API_TOKEN with permissions: deploy & read
-3. In GitHub: Go to repo Settings / Secrets and variables / Actions
-4. Add Repository secrets:
-   - COOLIFY_API_TOKEN (from step 2)
-   - COOLIFY_WEBHOOK_FRONTEND (from Coolify frontend resource / Webhooks tab)
-   - COOLIFY_WEBHOOK_BACKEND (from Coolify backend resource / Webhooks tab)
+## Stack
 
-FYI: When creating the resource for an app, select Docker Based /
-Docker Image and set the image to the URL of the package from ghcr.
-- Frontend: ghcr.io/aldo-leka/blackjack.js-frontend:latest
-- Backend: ghcr.io/aldo-leka/blackjack.js-backend:latest
+- Frontend: Next.js 16, React 19, Tailwind CSS 4
+- Backend: Express, Socket.IO, TypeScript
+- Auth: Better Auth with Google sign-in
+- Payments: Polar
+- Database: PostgreSQL with Prisma
+- Deployment: GitHub Actions, GHCR, self-hosted runner on VPS
 
-For clarification (from Claude):
-1. GitHub Actions builds the Docker image (on GitHub's servers)
-2. Pushes to GHCR (GitHub Container Registry - a storage for Docker images)
-3. Coolify pulls from GHCR when you trigger deployment
-4. Image stays in GHCR (it's not deleted - it's stored there)
+## Repository layout
 
-## Prisma commands
-### to create and apply migrations
-```npx prisma migrate dev```
+```text
+front/                     Next.js app
+back/                      Express API, auth, Socket.IO server, Prisma schema
+.github/workflows/         Frontend and backend deploy workflows
+docker-compose.yml         Production runtime compose file
+scripts/deploy-front.sh    VPS frontend deploy script
+scripts/deploy-back.sh     VPS backend deploy script
+```
 
-### to generate the prisma client
-```npx prisma generate```
+## Features
 
-### to update the database schema without creating migration files
-```npx prisma db push```
+- Browser-based blackjack table
+- Real-time multiplayer state over Socket.IO
+- Guest nicknames and authenticated users
+- Google login
+- Polar-powered chip top-ups
+- Leaderboard and in-game chat
+- Cron-based refill endpoint for chip refills
 
-### to open the db gui
-```npx prisma studio```
+## Local development
 
-### drop the development db
-```prisma migrate reset```
+### 1. Install dependencies
 
-## Game rules
-If you split and a hand gets 21 with Ace + 10, you win 1:1, not 3:2.
+```bash
+cd front && npm ci
+cd ../back && npm ci
+```
 
-## TODO: Game economy
-## Streak
+### 2. Create local env files
 
-### Cycle 1: Days 1-7
-| Day | Reward |
-| --- | ------ |
-| 1   | $10    |
-| 2   | $12    |
-| 3   | $15    |
-| 4   | $18    |
-| 5   | $20    |
-| 6   | $25    |
-| 7   | $40 + Spin Wheel |
+Frontend expects standard Next.js env vars, usually in `front/.env.local`:
 
-### Cycle 2: Days 8-14
-| Day | Reward |
-| --- | ------ |
-| 8   | $15    |
-| 9   | $18    |
-| 10  | $22    |
-| 11  | $27    |
-| 12  | $30    |
-| 13  | $38    |
-| 14  | $60 + Spin Wheel + Exclusive Table Skin |
+```env
+NEXT_PUBLIC_FRONTEND_URL=http://localhost:3000
+NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
+```
 
-### Cycle 3: Days 15-21
-| Day | Reward |
-| --- | ------ |
-| 15  | $22    |
-| 16  | $27    |
-| 17  | $33    |
-| 18  | $40    |
-| 19  | $45    |
-| 20  | $57    |
-| 21  | $90 + Spin Wheel + "High Roller Streak" Title |
+Backend expects env vars in `back/.env`:
 
-### Cycle 4: Days 22-28
-| Day | Reward |
-| --- | ------ |
-| 22  | $33    |
-| 23  | $40    |
-| 24  | $50    |
-| 25  | $60    |
-| 26  | $68    |
-| 27  | $86    |
-| 28  | $135 + Spin Wheel + Profile Badge |
+```env
+PORT=3001
+NODE_ENV=development
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/blackjack
+CORS_ORIGIN=http://localhost:3000
+BETTER_AUTH_SECRET=replace-me
+CRON_SECRET=replace-me
+GOOGLE_CLIENT_ID=replace-me
+GOOGLE_CLIENT_SECRET=replace-me
+POLAR_ACCESS_TOKEN=replace-me
+POLAR_WEBHOOK_SECRET=replace-me
+POLAR_PRODUCT_STARTER_ID=replace-me
+POLAR_PRODUCT_QUICK_BOOST_ID=replace-me
+POLAR_PRODUCT_VALUE_PACK_ID=replace-me
+POLAR_PRODUCT_PRO_PACK_ID=replace-me
+POLAR_PRODUCT_HIGH_ROLLER_ID=replace-me
+POLAR_PRODUCT_VIP_PACK_ID=replace-me
+POLAR_PRODUCT_WHALE_PACK_ID=replace-me
+```
 
-### Cycle 5+: Days 29-35, 36-42, etc.
-| Day Pattern | Reward Formula |
-| ----------- | -------------- |
-| Day 1 of cycle | Previous cycle Day 1 × 1.5 |
-| Day 2 of cycle | Previous cycle Day 2 × 1.5 |
-| Day 3 of cycle | Previous cycle Day 3 × 1.5 |
-| Day 4 of cycle | Previous cycle Day 4 × 1.5 |
-| Day 5 of cycle | Previous cycle Day 5 × 1.5 |
-| Day 6 of cycle | Previous cycle Day 6 × 1.5 |
-| Day 7 of cycle | Previous cycle Day 7 × 1.5 + Spin Wheel + Rotating Cosmetic |
+### 3. Start the apps
 
-**Multiplier:** Each 7-day cycle multiplies the previous cycle's rewards by **1.5x**
+Run the backend:
 
-**Special Milestones:**
-- Day 30: $200 + VIP Chip Bundle + Platinum Badge
-- Day 60: $500 + Exclusive Avatar Frame
-- Day 90: $1,000 + "Legendary Dedication" Title
-- Day 180: $2,500 + Golden Card Deck Skin
-- Day 365: $10,000 + "Annual Champion" Title + Special Animation
+```bash
+cd back
+npm run dev
+```
 
-**Guest Limit:** Unregistered users capped at 7-day streak (Cycle 1 only)
+Run the frontend:
 
-### Weekly Spin Wheel
-| Prize   | Probability |
-| ------- | ----------- |
-| $50     | 45%         |
-| $100    | 30%         |
-| $250    | 15%         |
-| $500    | 7%          |
-| $2,500  | 2.5%        |
-| $10,000 | 0.5%        |
+```bash
+cd front
+npm run dev
+```
 
-### Leveling
-| Level  | Title     |
-| ------ | --------  |
-| 1      | Recruit   |
-| 5      | Cadet     |
-| 10     | Ace       |
-| 25     | Captain   |
-| 50     | General   |
-| 100    | Grandmaster |
+Frontend runs on `http://localhost:3000`.
+Backend runs on `http://localhost:3001`.
 
-XP comes from:
-- Playing hands +2 XP
-- Winning hand +3 XP
-- Winning a double down +5 XP
-- Winning both on a split +8 XP
-- Getting a blackjack +4 XP
-- Winning 3 hands in a row +5 XP bonus
-- Winning 5 hands in a row +12 XP bonus
-- Winning 8 hands in a row +20 XP bonus
-- Winning 10 hands in a row +30 XP bonus
+## Prisma and database
 
-### Chip Packages
-| Price  | Chips Given | Bonus Chips | Total Value | Label |
-| ------ | ----------- | ----------- | ----------- | ----- |
-| $0.99  | 150         | —           | 150         | Starter Pack |
-| $2.99  | 450         | +50         | 500         | Quick Boost |
-| $4.99  | 750         | +150        | 900         | Value Pack |
-| $9.99  | 1,500       | +500        | 2,000       | Pro Pack |
-| $19.99 | 3,500       | +1,000      | 4,500       | High Roller Pack |
-| $49.99 | 10,000      | +2,500      | 12,500      | VIP Pack |
-| $99.99 | 22,000      | +6,000      | 28,000      | Whale Pack |
+Common Prisma commands from the `back/` directory:
 
-### Free Chip Options
-- **Bankruptcy Protection:** 75 chips (auto-granted next day after hitting $0)
-- **Watch & Earn:** 25 chips per ad (max 3 ads/day = 75 chips/day)
+```bash
+npx prisma migrate dev
+npx prisma migrate deploy
+npx prisma generate
+npx prisma db push
+npx prisma studio
+npx prisma migrate reset
+```
 
-### Profile card (shareable at /u/nickname)
-- Nickname
-- Win %
-- Net worth
-- Rank (e.g. #218 global)
-- Badge
-- Streak days
+Production deploys run `npm run migrate:deploy` automatically before the backend container is updated.
 
-e.g. "Aldo · 💰 Net worth: $487 · ♠🔥 67% win streak · 🥇 Top 8% player"
+## API shape
 
-### Table Stakes (maybe)
-| Table Type  | Min Bet | Max Bet | Unlock Level |
-| ----------- | ------- | ------- | ------------ |
-| Beginner    | $5      | $50     | Level 1      |
-| Standard    | $25     | $500    | Level 10     |
-| High Roller | $100    | $5,000  | Level 25     |
-| VIP         | $500    | $50,000 | Level 50     |
+Main backend entrypoints are mounted in [`back/app.ts`](./back/app.ts):
+
+- `/api/auth/*` for Better Auth
+- `/api/users/*` for user lookups
+- `/api/items/*` for item routes
+- `/api/cron/*` for internal cron jobs
+- `/api/leaderboard`, `/api/logs`, `/api/rooms`
+
+Socket.IO is served from the same backend origin as the API.
+
+## Deployment
+
+This repo no longer uses the old Coolify webhook flow.
+
+Current production deployment works like this:
+
+1. Push to `main`.
+2. GitHub Actions builds the changed app image on GitHub-hosted runners.
+3. The image is pushed to GitHub Container Registry:
+   - `ghcr.io/aldo-leka/blackjack.js-frontend`
+   - `ghcr.io/aldo-leka/blackjack.js-backend`
+4. A self-hosted runner on the VPS pulls the new image and deploys it.
+5. Backend deploys run Prisma migrations before restarting the backend service.
+
+Workflows:
+
+- [`frontend.yml`](./.github/workflows/frontend.yml)
+- [`backend.yml`](./.github/workflows/backend.yml)
+
+Deploy scripts:
+
+- [`scripts/deploy-front.sh`](./scripts/deploy-front.sh)
+- [`scripts/deploy-back.sh`](./scripts/deploy-back.sh)
+
+The production `docker-compose.yml` in the repo is VPS-oriented. It expects:
+
+- a backend env file at `back/.env.production`
+- an external ingress network already present on the server
+- an external Docker network that connects the app to the production Postgres container
+
+## Game rule note
+
+If a split hand reaches 21 with Ace + 10, it pays `1:1`, not `3:2`.
