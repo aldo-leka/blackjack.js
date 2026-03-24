@@ -1,0 +1,57 @@
+services:
+  front:
+    image: ghcr.io/aldo-leka/blackjack.js-frontend:${FRONT_IMAGE_TAG:-latest}
+    container_name: blackjack-front
+    restart: unless-stopped
+    environment:
+      HOSTNAME: 0.0.0.0
+    expose:
+      - "3000"
+    networks:
+      - ingress
+
+  back:
+    image: ghcr.io/aldo-leka/blackjack.js-backend:${BACK_IMAGE_TAG:-latest}
+    container_name: blackjack-back
+    restart: unless-stopped
+    env_file:
+      - ./back/.env.production
+    expose:
+      - "3001"
+    networks:
+      - app
+      - ingress
+      - database
+
+  refill-worker:
+    image: curlimages/curl:8.10.1
+    container_name: blackjack-refill-worker
+    restart: unless-stopped
+    depends_on:
+      - back
+    env_file:
+      - ./back/.env.production
+    environment:
+      REFILL_JOB_INTERVAL_SECONDS: ${REFILL_JOB_INTERVAL_SECONDS:-900}
+    command: >
+      sh -c '
+        interval="$${REFILL_JOB_INTERVAL_SECONDS:-900}";
+        while true; do
+          curl --retry 3 --max-time 15 -fsS -X POST \
+            -H "Authorization: Bearer $${CRON_SECRET}" \
+            http://back:3001/api/cron/refill >/dev/null || true;
+          sleep "$${interval}";
+        done
+      '
+    networks:
+      - app
+
+networks:
+  app:
+    name: blackjack-app-internal
+  ingress:
+    external: true
+    name: yhp99hliq5cujkenfl2ln6rp
+  database:
+    external: true
+    name: blackjack-internal

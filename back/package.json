@@ -4,6 +4,7 @@
   "description": "",
   "scripts": {
     "build": "tsc",
+    "migrate:deploy": "prisma migrate deploy",
     "start": "node dist/server.js",
     "dev": "nodemon --watch './**/*.ts' --exec 'ts-node' ./server.ts",
     "lint": "eslint './**/*.ts'"

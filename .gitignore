@@ -1,7 +1,9 @@
 node_modules/
 .DS_STORE
 back/.env
+back/.env.production
 front/.env.local
+front/.env.production
 back/dist
 .VSCodeCounter/
 *.md
