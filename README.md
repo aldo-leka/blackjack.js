@@ -4,7 +4,6 @@ Christmas-themed online blackjack with a Next.js frontend and an Express + Socke
 
 Production:
 - Frontend: `https://blackjack.aldo.al`
-- Backend: `https://blackjackapi.aldo.al`
 
 ## Stack
 
